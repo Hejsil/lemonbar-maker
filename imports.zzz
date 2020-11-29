@@ -1,0 +1,21 @@
+clap:
+  root: /clap.zig
+  src:
+    github:
+      repo: zig-clap
+      user: Hejsil
+      ref: master
+datetime:
+  root: /datetime.zig
+  src:
+    github:
+      repo: zig-datetime
+      user: frmdstryr
+      ref: master
+mecha:
+  root: /mecha.zig
+  src:
+    github:
+      repo: mecha
+      user: Hejsil
+      ref: master
