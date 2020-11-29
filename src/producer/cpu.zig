@@ -31,10 +31,6 @@ pub fn cpu(channel: *event.Channel(Message)) void {
 pub const Cpu = struct {
     number: usize,
     cpu: CpuInfo,
-
-    fn from(t: anytype) ?Cpu {
-        return Cpu{ .number = t[0], .cpu = t[1] };
-    }
 };
 
 pub const CpuInfo = struct {
@@ -48,21 +44,6 @@ pub const CpuInfo = struct {
     steal: usize,
     guest: usize,
     guest_nice: usize,
-
-    fn from(t: anytype) ?CpuInfo {
-        return CpuInfo{
-            .user = t[0],
-            .nice = t[1],
-            .sys = t[2],
-            .idle = t[3],
-            .iowait = t[4],
-            .hardirq = t[5],
-            .softirq = t[6],
-            .steal = t[7],
-            .guest = t[8],
-            .guest_nice = t[9],
-        };
-    }
 };
 
 const first_line = mecha.combine(.{
@@ -74,10 +55,10 @@ const first_line = mecha.combine(.{
     mecha.char('\n'),
 });
 
-const line = mecha.convert(Cpu, Cpu.from, mecha.combine(.{
+const line = mecha.as(Cpu, mecha.toStruct(Cpu), mecha.combine(.{
     mecha.string("cpu"),
     mecha.int(usize, 10),
-    mecha.convert(CpuInfo, CpuInfo.from, mecha.manyN(10, mecha.combine(.{
+    mecha.as(CpuInfo, mecha.toStruct(CpuInfo), mecha.manyN(10, mecha.combine(.{
         mecha.discard(mecha.many(mecha.char(' '))),
         mecha.int(usize, 10),
     }))),

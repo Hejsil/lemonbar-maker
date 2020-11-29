@@ -1,5 +1,4 @@
 const std = @import("std");
-const mecha = @import("mecha");
 
 const ascii = std.ascii;
 const event = std.event;
