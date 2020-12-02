@@ -17,15 +17,13 @@ pub fn rss(channel: *event.Channel(Message), home_dir: fs.Dir) void {
     // TODO: Currently we just count the unread rss feeds every so often. In an ideal world,
     //       we wait for file system events, but it seems that Zigs `fs.Watch` haven't been
     //       worked on for a while, so I'm not gonna try using it.
-    while (true) {
+    while (true) : (loop.sleep(std.time.ns_per_min * 10)) {
         channel.put(.{
             .rss = .{
                 .unread = count(unread),
                 .read = count(read),
             },
         });
-
-        loop.sleep(std.time.ns_per_min * 10);
     }
 }
 

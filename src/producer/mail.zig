@@ -16,9 +16,14 @@ pub fn mail(channel: *event.Channel(Message), home_dir: fs.Dir) void {
     // TODO: Currently we just count the mails every so often. In an ideal world,
     //       we wait for file system events, but it seems that Zigs `fs.Watch` haven't been
     //       worked on for a while, so I'm not gonna try using it.
-    while (true) {
-        channel.put(.{ .mail = count(mail_dir) });
-        loop.sleep(std.time.ns_per_min * 10);
+    while (true) : (loop.sleep(std.time.ns_per_min * 10)) {
+        const res = count(mail_dir);
+        channel.put(.{
+            .mail = .{
+                .read = res.read,
+                .unread = res.unread,
+            },
+        });
     }
 }
 

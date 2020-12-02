@@ -21,15 +21,23 @@ pub fn cpu(channel: *event.Channel(Message)) void {
         if (first_line(content)) |res|
             content = res.rest;
 
-        while (line(content)) |result| : (content = result.rest)
-            channel.put(.{ .cpu = result.value });
+        while (line(content)) |result| : (content = result.rest) {
+            channel.put(.{
+                .cpu = .{
+                    .id = result.value.id,
+                    .user = result.value.cpu.user,
+                    .sys = result.value.cpu.sys,
+                    .idle = result.value.cpu.idle,
+                },
+            });
+        }
 
         loop.sleep(std.time.ns_per_s);
     }
 }
 
 pub const Cpu = struct {
-    number: usize,
+    id: usize,
     cpu: CpuInfo,
 };
 

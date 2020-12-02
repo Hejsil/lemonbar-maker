@@ -19,3 +19,10 @@ mecha:
       repo: mecha
       user: Hejsil
       ref: master
+sab:
+  root: /src/main.zig
+  src:
+    github:
+      repo: sab
+      user: Hejsil
+      ref: master

@@ -1,12 +1,14 @@
+const datetime = @import("datetime");
+const message = @import("message.zig");
 const producer = @import("producer.zig");
+const sab = @import("sab");
 const std = @import("std");
 
 const event = std.event;
 const fs = std.fs;
 const io = std.io;
+const mem = std.mem;
 const process = std.process;
-
-const Message = @import("message.zig").Message;
 
 pub const io_mode = io.Mode.evented;
 
@@ -27,9 +29,15 @@ pub fn main() !void {
     // label %OkResume
     //const xtitle = try std.ChildProcess.init(&[_][]const u8{"xtitle"}, allocator);
     //try xtitle.spawn();
-    var buf: [1024]Message = undefined;
-    var channel: event.Channel(Message) = undefined;
+    var buf: [1024]message.Message = undefined;
+    var channel: event.Channel(message.Message) = undefined;
     channel.init(&buf);
+
+    // event.Locked.init doesn't compile...
+    var locked_state = event.Locked(State){
+        .lock = event.Lock{},
+        .private_data = State{ .now = datetime.Datetime.now() },
+    };
 
     const f1 = async producer.date(&channel);
     const f2 = async producer.mem(&channel);
@@ -37,39 +45,164 @@ pub fn main() !void {
     const f4 = async producer.rss(&channel, home_dir);
     const f5 = async producer.mail(&channel, home_dir);
     const f6 = async producer.bspwm(&channel);
-    consumer(&channel);
+    const f7 = async consumer(&channel, &locked_state);
+    try renderer(&locked_state);
 }
 
-fn consumer(channel: *event.Channel(Message)) void {
-    const out = io.bufferedOutStream(io.getStdOut().writer()).writer();
+// This structure should be deep copiable, so that the renderer can keep
+// track of a `prev` version of the state for comparison.
+const State = struct {
+    now: datetime.Datetime,
+    mem_percent_used: u8 = 0,
+    rss_unread: usize = 0,
+    mail_unread: usize = 0,
+
+    // Support up to 128 threads
+    cpu_percent: [128]?u8 = [_]?u8{null} ** 128,
+    monitors: [4]Monitor = [_]Monitor{.{}} ** 4,
+};
+
+const Monitor = struct {
+    is_active: bool = false,
+    workspaces: [20]Workspace = [_]Workspace{.{}} ** 20,
+};
+
+const Workspace = packed struct {
+    is_active: bool = false,
+    focused: bool = false,
+    occupied: bool = false,
+};
+
+fn consumer(channel: *event.Channel(message.Message), locked_state: *event.Locked(State)) void {
+    const Cpu = struct {
+        user: usize = 0,
+        sys: usize = 0,
+        idle: usize = 0,
+    };
+
+    var cpu_last = [_]Cpu{.{}} ** 128;
     while (true) {
         const change = channel.get();
-        defer out.context.flush() catch {};
+        const held = locked_state.acquire();
+        const state = held.value;
+        defer held.release();
 
-        (switch (change) {
-            .date => |now| out.print("{} {d:0>2} {} {d:0>2}:{d:0>2}\n", .{
-                now.date.monthName()[0..3],
-                now.date.day,
-                @tagName(now.date.dayOfWeek())[0..3],
-                now.time.hour,
-                now.time.minute,
-            }),
-            .mem => |mem| out.print("{}\n", .{
-                mem,
-                //@floatToInt(usize, (@intToFloat(f32, mem.total - mem.available) / @intToFloat(f32, mem.total)) * 100),
-            }),
-            .cpu => |cpu| out.print("{}\n", .{
-                cpu,
-            }),
-            .rss => |rss| out.print("{}\n", .{
-                rss,
-            }),
-            .mail => |mail| out.print("{}\n", .{
-                mail,
-            }),
-            .bspwm => |bspwm| out.print("{}\n", .{
-                bspwm,
-            }),
-        }) catch {};
+        switch (change) {
+            .date => |now| state.now = now,
+            .rss => |rss| state.rss_unread = rss.unread,
+            .mail => |mail| state.mail_unread = mail.unread,
+            .mem => |memory| {
+                const used = memory.total - memory.available;
+                state.mem_percent_used = @intCast(u8, (used * 100) / memory.total);
+            },
+            .cpu => |cpu| {
+                const i = cpu.id;
+                const last = cpu_last[i];
+                const user = cpu.user - last.user;
+                const sys = cpu.sys - last.sys;
+                const idle = cpu.idle - last.idle;
+                const usage = ((user + sys) * 100) / (user + sys + idle);
+                state.cpu_percent[i] = @intCast(u8, usage);
+                cpu_last[i] = .{
+                    .user = cpu.user,
+                    .sys = cpu.sys,
+                    .idle = cpu.idle,
+                };
+            },
+            .workspace => |workspace| {
+                const mon = &state.monitors[workspace.monitor_id];
+                mon.is_active = true;
+                mon.workspaces[workspace.id] = .{
+                    .is_active = true,
+                    .focused = workspace.flags.focused,
+                    .occupied = workspace.flags.occupied,
+                };
+            },
+        }
     }
 }
+
+// We seperate the renderer loop from the consumer loop, so that we can throttle
+// how often we redraw the bar. If the consumer was to render the bar on every message,
+// we would output multible bars when something happends close together. It is just
+// better to wait for a few more messages before drawing. The renderer will look at
+// the `locked_state` once in a while (30 times per sec) and redraw of anything changed
+// from the last iteration.
+fn renderer(locked_state: *event.Locked(State)) !void {
+    const loop = event.Loop.instance.?;
+    const out = io.bufferedWriter(io.getStdOut().writer()).writer();
+
+    var prev = blk: {
+        const held = locked_state.acquire();
+        defer held.release();
+        break :blk held.value.*;
+    };
+    while (true) : (loop.sleep(std.time.ns_per_s / 30)) {
+        const curr = blk: {
+            const held = locked_state.acquire();
+            defer held.release();
+            break :blk held.value.*;
+        };
+
+        if (std.meta.eql(prev, curr))
+            continue;
+
+        prev = curr;
+        for (curr.monitors) |monitor, mon_id| {
+            if (!monitor.is_active)
+                continue;
+            try out.print("%{{S{}}}", .{mon_id});
+
+            try out.writeAll("%{l} ");
+            for (monitor.workspaces) |workspace, i| {
+                if (!workspace.is_active)
+                    continue;
+
+                const focus: usize = @boolToInt(workspace.focused);
+                const occupied: usize = @boolToInt(workspace.occupied);
+                try out.print("%{{+o}}{} {}{}{}%{{-o}}", .{
+                    ([_][]const u8{ "", "%{+u}" })[focus],
+                    i + 1,
+                    ([_][]const u8{ " ", "*" })[occupied],
+                    ([_][]const u8{ "", "%{-u}" })[focus],
+                });
+            }
+
+            try out.writeAll("%{r}");
+            try out.print("%{{+o}} mail:{:>3} %{{-o}} ", .{curr.mail_unread});
+            try out.print("%{{+o}} rss:{:>3} %{{-o}} ", .{curr.rss_unread});
+
+            try out.writeAll("%{+o} mem: ");
+            try sab.draw(out, u8, curr.mem_percent_used, .{ .len = 1, .steps = &bars });
+            try out.writeAll(" %{-o} ");
+
+            try out.writeAll("%{+o} cpu: ");
+            for (curr.cpu_percent) |m_cpu| {
+                const cpu = m_cpu orelse continue;
+                try sab.draw(out, u8, cpu, .{ .len = 1, .steps = &bars });
+            }
+            try out.writeAll(" %{-o} ");
+
+            try out.print("%{{+o}} {} {d:0>2} {} {d:0>2}:{d:0>2} %{{-o}} ", .{
+                curr.now.date.monthName()[0..3],
+                curr.now.date.day,
+                @tagName(curr.now.date.dayOfWeek())[0..3],
+                curr.now.time.hour,
+                curr.now.time.minute,
+            });
+        }
+        try out.writeAll("\n");
+        try out.context.flush();
+    }
+}
+
+const bars = [_][]const u8{
+    "▁",
+    "▂",
+    "▃",
+    "▄",
+    "▅",
+    "▆",
+    "▇",
+    "█",
+};

@@ -17,7 +17,13 @@ pub fn mem(channel: *event.Channel(Message)) void {
     while (true) {
         const content = cwd.readFile("/proc/meminfo", &buf) catch continue;
         const result = parser(content) orelse continue;
-        channel.put(.{ .mem = result.value });
+        channel.put(.{
+            .mem = .{
+                .total = result.value.mem_total,
+                .free = result.value.mem_free,
+                .available = result.value.mem_available,
+            },
+        });
 
         loop.sleep(std.time.ns_per_s);
     }
