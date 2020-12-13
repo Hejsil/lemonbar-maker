@@ -3,6 +3,7 @@ const mecha = @import("mecha");
 
 const event = std.event;
 const fs = std.fs;
+const log = std.log;
 
 const Message = @import("../message.zig").Message;
 
@@ -15,8 +16,14 @@ pub fn mem(channel: *event.Channel(Message)) void {
     var buf: [1024 * 10]u8 = undefined;
 
     while (true) {
-        const content = cwd.readFile("/proc/meminfo", &buf) catch continue;
-        const result = parser(content) orelse continue;
+        const content = cwd.readFile("/proc/meminfo", &buf) catch |err| {
+            log.warn("Failed to read /proc/meminfo: {}", .{err});
+            continue;
+        };
+        const result = parser(content) orelse {
+            log.warn("Error while parsing /proc/meminfo", .{});
+            continue;
+        };
         channel.put(.{
             .mem = .{
                 .total = result.value.mem_total,
@@ -86,7 +93,7 @@ pub const Mem = struct {
 const parser = blk: {
     @setEvalBranchQuota(1000000000);
 
-    break :blk mecha.as(Mem, mecha.toStruct(Mem), mecha.combine(.{
+    break :blk mecha.map(Mem, mecha.toStruct(Mem), mecha.combine(.{
         field("MemTotal"),
         field("MemFree"),
         field("MemAvailable"),

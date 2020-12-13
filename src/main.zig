@@ -5,6 +5,7 @@ const producer = @import("producer.zig");
 const sab = @import("sab");
 const std = @import("std");
 
+const log = std.log;
 const event = std.event;
 const fs = std.fs;
 const heap = std.heap;
@@ -42,6 +43,7 @@ pub fn main() !void {
     const allocator = &gba.allocator;
     defer _ = gba.deinit();
 
+    log.debug("Parsing arguments", .{});
     var diag = clap.Diagnostic{};
     var args = clap.parse(clap.Help, &params, allocator, &diag) catch |err| {
         const stderr = io.getStdErr().writer();
@@ -57,6 +59,7 @@ pub fn main() !void {
     const mid = args.option("--mid") orelse "-";
     const high = args.option("--high") orelse "-";
 
+    log.debug("Getting $HOME", .{});
     const home_dir_path = try process.getEnvVarOwned(allocator, "HOME");
     defer allocator.free(home_dir_path);
 
@@ -79,6 +82,7 @@ pub fn main() !void {
         .private_data = State{ .now = datetime.Datetime.now() },
     };
 
+    log.debug("Setting up pipeline", .{});
     const f1 = async producer.date(&channel);
     const f2 = async producer.mem(&channel);
     const f3 = async producer.cpu(&channel);
@@ -86,11 +90,16 @@ pub fn main() !void {
     const f5 = async producer.mail(&channel, home_dir);
     const f6 = async producer.bspwm(&channel);
     const f7 = async consumer(&channel, &locked_state);
-    try renderer(&locked_state, .{
+    renderer(&locked_state, .{
         .low = low,
         .mid = mid,
         .high = high,
-    });
+    }) catch |err| {
+        log.emerg("Failed to render bar: {}", .{err});
+        return err;
+    };
+
+    log.debug("Goodnight", .{});
 }
 
 const Options = struct {

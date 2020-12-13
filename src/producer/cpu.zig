@@ -3,6 +3,7 @@ const mecha = @import("mecha");
 
 const event = std.event;
 const fs = std.fs;
+const log = std.log;
 
 const Message = @import("../message.zig").Message;
 
@@ -17,7 +18,10 @@ pub fn cpu(channel: *event.Channel(Message)) void {
     var buf: [1024 * 1024]u8 = undefined;
 
     while (true) {
-        var content: []const u8 = cwd.readFile("/proc/stat", &buf) catch continue;
+        var content: []const u8 = cwd.readFile("/proc/stat", &buf) catch |err| {
+            log.warn("Failed to read /proc/stat: {}", .{err});
+            continue;
+        };
         if (first_line(content)) |res|
             content = res.rest;
 
@@ -63,10 +67,10 @@ const first_line = mecha.combine(.{
     mecha.char('\n'),
 });
 
-const line = mecha.as(Cpu, mecha.toStruct(Cpu), mecha.combine(.{
+const line = mecha.map(Cpu, mecha.toStruct(Cpu), mecha.combine(.{
     mecha.string("cpu"),
     mecha.int(usize, 10),
-    mecha.as(CpuInfo, mecha.toStruct(CpuInfo), mecha.manyN(10, mecha.combine(.{
+    mecha.map(CpuInfo, mecha.toStruct(CpuInfo), mecha.manyN(10, mecha.combine(.{
         mecha.discard(mecha.many(mecha.char(' '))),
         mecha.int(usize, 10),
     }))),

@@ -5,7 +5,7 @@ pub const pkgs = .{
     },
     .datetime = .{
         .name = "datetime",
-        .path = "zig-deps/68582870b79584c72d1164716da5bd48/datetime.zig",
+        .path = "zig-deps/a0d0823a9a83b98730756b1d779734b7/datetime.zig",
     },
     .mecha = .{
         .name = "mecha",
