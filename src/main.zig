@@ -10,6 +10,7 @@ const event = std.event;
 const fs = std.fs;
 const heap = std.heap;
 const io = std.io;
+const math = std.math;
 const mem = std.mem;
 const process = std.process;
 
@@ -157,10 +158,10 @@ fn consumer(channel: *event.Channel(message.Message), locked_state: *event.Locke
             .cpu => |cpu| {
                 const i = cpu.id;
                 const last = cpu_last[i];
-                const user = cpu.user - last.user;
-                const sys = cpu.sys - last.sys;
-                const idle = cpu.idle - last.idle;
-                const cpu_usage = ((user + sys) * 100) / (user + sys + idle);
+                const user = math.sub(usize, cpu.user, last.user) catch 0;
+                const sys = math.sub(usize, cpu.sys, last.sys) catch 0;
+                const idle = math.sub(usize, cpu.idle, last.idle) catch 0;
+                const cpu_usage = ((user + sys) * 100) / math.max(1, user + sys + idle);
                 state.cpu_percent[i] = @intCast(u8, cpu_usage);
                 cpu_last[i] = .{
                     .user = cpu.user,
