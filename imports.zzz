@@ -10,7 +10,7 @@ datetime:
   src:
     github:
       repo: zig-datetime
-      user: Hejsil
+      user: frmdstryr
       ref: master
 mecha:
   root: /mecha.zig
