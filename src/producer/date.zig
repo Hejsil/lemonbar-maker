@@ -11,13 +11,12 @@ pub fn date(channel: *event.Channel(Message)) void {
     next.time.second = 0;
     next.time.nanosecond = 0;
 
-    while (true) {
+    while (true) : (loop.sleep(std.time.ns_per_s)) {
         var now = datetime.Datetime.now().shiftTimezone(&datetime.timezones.Europe.Copenhagen);
 
         if (next.lte(now)) {
             channel.put(.{ .date = now });
             next = next.shiftMinutes(1);
         }
-        loop.sleep(std.time.ns_per_s);
     }
 }
