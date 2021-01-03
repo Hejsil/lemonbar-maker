@@ -79,6 +79,8 @@ pub const Mem = struct {
     shmem_pmd_mapped: usize,
     file_huge_pages: usize,
     file_pmd_mapped: usize,
+    cma_total: usize,
+    cma_free: usize,
     huge_pages_total: usize,
     huge_pages_free: usize,
     huge_pages_rsvd: usize,
@@ -136,6 +138,8 @@ const parser = blk: {
         field("ShmemPmdMapped"),
         field("FileHugePages"),
         field("FilePmdMapped"),
+        field("CmaTotal"),
+        field("CmaFree"),
         field("HugePages_Total"),
         field("HugePages_Free"),
         field("HugePages_Rsvd"),
@@ -151,9 +155,9 @@ const parser = blk: {
 fn field(comptime name: []const u8) mecha.Parser(usize) {
     return mecha.combine(.{
         mecha.string(name ++ ":"),
-        mecha.discard(mecha.many(mecha.char(' '))),
+        mecha.discard(mecha.many(mecha.ascii.char(' '))),
         mecha.int(usize, 10),
         mecha.discard(mecha.opt(mecha.string(" kB"))),
-        mecha.char('\n'),
+        mecha.ascii.char('\n'),
     });
 }

@@ -61,18 +61,18 @@ pub const CpuInfo = struct {
 const first_line = mecha.combine(.{
     mecha.string("cpu"),
     mecha.manyN(10, mecha.combine(.{
-        mecha.discard(mecha.many(mecha.char(' '))),
+        mecha.discard(mecha.many(mecha.ascii.char(' '))),
         mecha.int(usize, 10),
     })),
-    mecha.char('\n'),
+    mecha.ascii.char('\n'),
 });
 
 const line = mecha.map(Cpu, mecha.toStruct(Cpu), mecha.combine(.{
     mecha.string("cpu"),
     mecha.int(usize, 10),
     mecha.map(CpuInfo, mecha.toStruct(CpuInfo), mecha.manyN(10, mecha.combine(.{
-        mecha.discard(mecha.many(mecha.char(' '))),
+        mecha.discard(mecha.many(mecha.ascii.char(' '))),
         mecha.int(usize, 10),
     }))),
-    mecha.char('\n'),
+    mecha.ascii.char('\n'),
 }));
