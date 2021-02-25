@@ -1,5 +1,5 @@
-const std = @import("std");
 const mecha = @import("mecha");
+const std = @import("std");
 
 const event = std.event;
 const fs = std.fs;
@@ -20,8 +20,8 @@ pub fn mem(channel: *event.Channel(Message)) void {
             log.warn("Failed to read /proc/meminfo: {}", .{err});
             continue;
         };
-        const result = parser(content) orelse {
-            log.warn("Error while parsing /proc/meminfo", .{});
+        const result = parser(undefined, content) catch |err| {
+            log.warn("Error while parsing /proc/meminfo: {}", .{err});
             continue;
         };
         channel.put(.{
@@ -155,7 +155,7 @@ const parser = blk: {
 fn field(comptime name: []const u8) mecha.Parser(usize) {
     return mecha.combine(.{
         mecha.string(name ++ ":"),
-        mecha.discard(mecha.many(mecha.ascii.char(' '))),
+        mecha.discard(mecha.many(mecha.ascii.char(' '), .{ .collect = false })),
         mecha.int(usize, 10),
         mecha.discard(mecha.opt(mecha.string(" kB"))),
         mecha.ascii.char('\n'),

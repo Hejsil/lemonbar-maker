@@ -1,0 +1,4 @@
+github Hejsil sab master /src/main.zig dbb3f87822583d0c8a428325d68aed452a465983
+github Hejsil mecha master /mecha.zig b3a4a18074ad58e01210e71a29d51334815f5222
+github Hejsil zig-clap master /clap.zig e00e90270102e659ac6a5f3a20353f7317091505
+github frmdstryr zig-datetime master /datetime.zig 9b7e0ef8d23f4d54fae2fbe89f08ef9106a84308

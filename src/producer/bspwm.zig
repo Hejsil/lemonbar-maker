@@ -16,14 +16,20 @@ pub fn bspwm(channel: *event.Channel(Message)) void {
 
     // TODO: Don't hardcode path to bspwm socket
     const sock_addr = os.sockaddr_un{ .path = ("/tmp/bspwm_0_0-socket" ++ "\x00" ** 87).* };
-    const socket = os.socket(os.AF_UNIX, os.SOCK_STREAM, 0) catch |err| {
-        return log.err("Failed to get bspwm socket: {}", .{err});
-    };
+
+    const socket = while (true) : (loop.sleep(std.time.ns_per_s)) {
+        const socket = os.socket(os.AF_UNIX, os.SOCK_STREAM, 0) catch |err| {
+            return log.err("Failed to get bspwm socket: {}", .{err});
+        };
+        if (loop.connect(socket, @ptrCast(*const os.sockaddr, &sock_addr), @sizeOf(os.sockaddr_un))) |_| {
+            break socket;
+        } else |err| {
+            log.err("Failed to connect to bspwm socket: {}", .{err});
+            os.close(socket);
+        }
+    } else unreachable;
     defer os.close(socket);
 
-    loop.connect(socket, @ptrCast(*const os.sockaddr, &sock_addr), @sizeOf(os.sockaddr_un)) catch |err| {
-        return log.err("Failed to connect to bspwm socket: {}", .{err});
-    };
     _ = loop.sendto(socket, "subscribe\x00report\x00", 0, null, 0) catch |err| {
         return log.err("Failed to subscribe to bspwm reports: {}", .{err});
     };

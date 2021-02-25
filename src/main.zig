@@ -5,11 +5,11 @@ const producer = @import("producer.zig");
 const sab = @import("sab");
 const std = @import("std");
 
-const log = std.log;
 const event = std.event;
 const fs = std.fs;
 const heap = std.heap;
 const io = std.io;
+const log = std.log;
 const math = std.math;
 const mem = std.mem;
 const process = std.process;
@@ -87,7 +87,7 @@ pub fn main() !void {
     const f1 = async producer.date(&channel);
     const f2 = async producer.mem(&channel);
     const f3 = async producer.cpu(&channel);
-    const f4 = async producer.rss(&channel, home_dir);
+    const f4 = async producer.rss(&channel, allocator, home_dir);
     const f5 = async producer.mail(&channel, home_dir);
     const f6 = async producer.bspwm(&channel);
     const f7 = async consumer(&channel, &locked_state);
