@@ -1,5 +1,5 @@
-const mecha = @import("mecha");
 const std = @import("std");
+const mecha = @import("mecha");
 
 const event = std.event;
 const fs = std.fs;
@@ -22,11 +22,10 @@ pub fn cpu(channel: *event.Channel(Message)) void {
             log.warn("Failed to read /proc/stat: {}", .{err});
             continue;
         };
-        if (firstLine(undefined, content)) |res| {
+        if (first_line(content)) |res|
             content = res.rest;
-        } else |err| {}
 
-        while (line(undefined, content)) |result| : (content = result.rest) {
+        while (line(content)) |result| : (content = result.rest) {
             channel.put(.{
                 .cpu = .{
                     .id = result.value.id,
@@ -35,7 +34,7 @@ pub fn cpu(channel: *event.Channel(Message)) void {
                     .idle = result.value.cpu.idle,
                 },
             });
-        } else |err| {}
+        }
 
         loop.sleep(std.time.ns_per_s);
     }
@@ -59,21 +58,21 @@ pub const CpuInfo = struct {
     guest_nice: usize,
 };
 
-const firstLine = mecha.combine(.{
+const first_line = mecha.combine(.{
     mecha.string("cpu"),
-    mecha.manyN(mecha.combine(.{
-        mecha.discard(mecha.many(mecha.ascii.char(' '), .{ .collect = false })),
+    mecha.manyN(10, mecha.combine(.{
+        mecha.discard(mecha.many(mecha.ascii.char(' '))),
         mecha.int(usize, 10),
-    }), 10, .{}),
+    })),
     mecha.ascii.char('\n'),
 });
 
 const line = mecha.map(Cpu, mecha.toStruct(Cpu), mecha.combine(.{
     mecha.string("cpu"),
     mecha.int(usize, 10),
-    mecha.map(CpuInfo, mecha.toStruct(CpuInfo), mecha.manyN(mecha.combine(.{
-        mecha.discard(mecha.many(mecha.ascii.char(' '), .{ .collect = false })),
+    mecha.map(CpuInfo, mecha.toStruct(CpuInfo), mecha.manyN(10, mecha.combine(.{
+        mecha.discard(mecha.many(mecha.ascii.char(' '))),
         mecha.int(usize, 10),
-    }), 10, .{})),
+    }))),
     mecha.ascii.char('\n'),
 }));
