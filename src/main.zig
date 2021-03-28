@@ -5,11 +5,11 @@ const producer = @import("producer.zig");
 const sab = @import("sab");
 const std = @import("std");
 
-const log = std.log;
 const event = std.event;
 const fs = std.fs;
 const heap = std.heap;
 const io = std.io;
+const log = std.log;
 const math = std.math;
 const mem = std.mem;
 const process = std.process;
@@ -256,12 +256,19 @@ fn renderer(locked_state: *event.Locked(State), options: Options) !void {
             }
             try out.writeAll("%{F-} %{-o} ");
 
+            // Danish daylight saving fixup code
+            var date = curr.now;
+            const summer_start = try datetime.Datetime.create(date.date.year, 3, 28, 2, 0, 0, 0, date.zone);
+            const summer_end = try datetime.Datetime.create(date.date.year, 10, 31, 3, 0, 0, 0, date.zone);
+            if (summer_start.lte(date) and date.lte(summer_end))
+                date = date.shiftHours(1);
+
             try out.print("%{{+o}} {} {d:0>2} {} {d:0>2}:{d:0>2} %{{-o}} ", .{
-                curr.now.date.monthName()[0..3],
-                curr.now.date.day,
-                @tagName(curr.now.date.dayOfWeek())[0..3],
-                curr.now.time.hour,
-                curr.now.time.minute,
+                date.date.monthName()[0..3],
+                date.date.day,
+                @tagName(date.date.dayOfWeek())[0..3],
+                date.time.hour,
+                date.time.minute,
             });
         }
         try out.writeAll("\n");
