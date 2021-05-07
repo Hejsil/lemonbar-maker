@@ -84,14 +84,14 @@ pub fn main() !void {
     };
 
     log.debug("Setting up pipeline", .{});
-    const f1 = async producer.date(&channel);
-    const f2 = async producer.mem(&channel);
-    const f3 = async producer.cpu(&channel);
-    const f4 = async producer.rss(&channel, home_dir);
-    const f5 = async producer.mail(&channel, home_dir);
-    const f6 = async producer.bspwm(&channel);
-    const f7 = async consumer(&channel, &locked_state);
-    renderer(&locked_state, .{
+    const p1 = async producer.date(&channel);
+    const p2 = async producer.mem(&channel);
+    const p3 = async producer.cpu(&channel);
+    const p4 = async producer.rss(&channel, home_dir);
+    const p5 = async producer.mail(&channel, home_dir);
+    const p6 = async producer.bspwm(&channel);
+    const c1 = async consumer(&channel, &locked_state);
+    renderer(allocator, &locked_state, .{
         .low = low,
         .mid = mid,
         .high = high,
@@ -188,21 +188,20 @@ fn consumer(channel: *event.Channel(message.Message), locked_state: *event.Locke
 // better to wait for a few more messages before drawing. The renderer will look at
 // the `locked_state` once in a while (N times per sec) and redraw of anything changed
 // from the last iteration.
-fn renderer(locked_state: *event.Locked(State), options: Options) !void {
-    var buf: [1024]u8 = undefined;
-    var fba = heap.FixedBufferAllocator.init(&buf);
+fn renderer(allocator: *mem.Allocator, locked_state: *event.Locked(State), options: Options) !void {
     const loop = event.Loop.instance.?;
-    const out = io.bufferedWriter(io.getStdOut().writer()).writer();
+    const stdout = io.getStdOut().writer();
+    const out = std.ArrayList(u8).init(allocator).writer();
 
     const bars = [_][]const u8{
-        try std.fmt.allocPrint(&fba.allocator, "%{{F{}}}▁", .{options.low}),
-        try std.fmt.allocPrint(&fba.allocator, "%{{F{}}}▂", .{options.low}),
-        try std.fmt.allocPrint(&fba.allocator, "%{{F{}}}▃", .{options.low}),
-        try std.fmt.allocPrint(&fba.allocator, "%{{F{}}}▄", .{options.mid}),
-        try std.fmt.allocPrint(&fba.allocator, "%{{F{}}}▅", .{options.mid}),
-        try std.fmt.allocPrint(&fba.allocator, "%{{F{}}}▆", .{options.high}),
-        try std.fmt.allocPrint(&fba.allocator, "%{{F{}}}▇", .{options.high}),
-        try std.fmt.allocPrint(&fba.allocator, "%{{F{}}}█", .{options.high}),
+        try std.fmt.allocPrint(allocator, "%{{F{}}}▁", .{options.low}),
+        try std.fmt.allocPrint(allocator, "%{{F{}}}▂", .{options.low}),
+        try std.fmt.allocPrint(allocator, "%{{F{}}}▃", .{options.low}),
+        try std.fmt.allocPrint(allocator, "%{{F{}}}▄", .{options.mid}),
+        try std.fmt.allocPrint(allocator, "%{{F{}}}▅", .{options.mid}),
+        try std.fmt.allocPrint(allocator, "%{{F{}}}▆", .{options.high}),
+        try std.fmt.allocPrint(allocator, "%{{F{}}}▇", .{options.high}),
+        try std.fmt.allocPrint(allocator, "%{{F{}}}█", .{options.high}),
     };
 
     var prev = blk: {
@@ -242,14 +241,12 @@ fn renderer(locked_state: *event.Locked(State), options: Options) !void {
             }
 
             try out.writeAll("%{r}");
-            try out.print("%{{+o}} mail:{:>3} %{{-o}} ", .{curr.mail_unread});
-            try out.print("%{{+o}} rss:{:>3} %{{-o}} ", .{curr.rss_unread});
+            try out.print("%{{+o}} mail:rss {:0>2}:{:0>2} %{{-o}} ", .{ curr.mail_unread, curr.rss_unread });
 
-            try out.writeAll("%{+o} mem: ");
+            try out.writeAll("%{+o} ");
             try sab.draw(out, u8, curr.mem_percent_used, .{ .len = 1, .steps = &bars });
-            try out.writeAll("%{F-} %{-o} ");
+            try out.writeAll("%{F-}  ");
 
-            try out.writeAll("%{+o} cpu: ");
             for (curr.cpu_percent) |m_cpu| {
                 const cpu = m_cpu orelse continue;
                 try sab.draw(out, u8, cpu, .{ .len = 1, .steps = &bars });
@@ -272,6 +269,7 @@ fn renderer(locked_state: *event.Locked(State), options: Options) !void {
             });
         }
         try out.writeAll("\n");
-        try out.context.flush();
+        try stdout.writeAll(out.context.items);
+        out.context.shrinkRetainingCapacity(0);
     }
 }
