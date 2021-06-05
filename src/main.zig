@@ -46,7 +46,7 @@ pub fn main() !void {
 
     log.debug("Parsing arguments", .{});
     var diag = clap.Diagnostic{};
-    var args = clap.parse(clap.Help, &params, allocator, &diag) catch |err| {
+    var args = clap.parse(clap.Help, &params, .{ .diagnostic = &diag }) catch |err| {
         const stderr = io.getStdErr().writer();
         diag.report(stderr, err) catch {};
         usage(stderr) catch {};
@@ -194,14 +194,14 @@ fn renderer(allocator: *mem.Allocator, locked_state: *event.Locked(State), optio
     const out = std.ArrayList(u8).init(allocator).writer();
 
     const bars = [_][]const u8{
-        try std.fmt.allocPrint(allocator, "%{{F{}}}▁", .{options.low}),
-        try std.fmt.allocPrint(allocator, "%{{F{}}}▂", .{options.low}),
-        try std.fmt.allocPrint(allocator, "%{{F{}}}▃", .{options.low}),
-        try std.fmt.allocPrint(allocator, "%{{F{}}}▄", .{options.mid}),
-        try std.fmt.allocPrint(allocator, "%{{F{}}}▅", .{options.mid}),
-        try std.fmt.allocPrint(allocator, "%{{F{}}}▆", .{options.high}),
-        try std.fmt.allocPrint(allocator, "%{{F{}}}▇", .{options.high}),
-        try std.fmt.allocPrint(allocator, "%{{F{}}}█", .{options.high}),
+        try std.fmt.allocPrint(allocator, "%{{F{s}}}▁", .{options.low}),
+        try std.fmt.allocPrint(allocator, "%{{F{s}}}▂", .{options.low}),
+        try std.fmt.allocPrint(allocator, "%{{F{s}}}▃", .{options.low}),
+        try std.fmt.allocPrint(allocator, "%{{F{s}}}▄", .{options.mid}),
+        try std.fmt.allocPrint(allocator, "%{{F{s}}}▅", .{options.mid}),
+        try std.fmt.allocPrint(allocator, "%{{F{s}}}▆", .{options.high}),
+        try std.fmt.allocPrint(allocator, "%{{F{s}}}▇", .{options.high}),
+        try std.fmt.allocPrint(allocator, "%{{F{s}}}█", .{options.high}),
     };
 
     var prev = blk: {
@@ -232,7 +232,7 @@ fn renderer(allocator: *mem.Allocator, locked_state: *event.Locked(State), optio
 
                 const focus: usize = @boolToInt(workspace.focused);
                 const occupied: usize = @boolToInt(workspace.occupied);
-                try out.print("%{{+o}}{} {}{}{}%{{-o}}", .{
+                try out.print("%{{+o}}{s} {}{s}{s}%{{-o}}", .{
                     ([_][]const u8{ "", "%{+u}" })[focus],
                     i + 1,
                     ([_][]const u8{ " ", "*" })[occupied],
@@ -260,7 +260,7 @@ fn renderer(allocator: *mem.Allocator, locked_state: *event.Locked(State), optio
             if (summer_start.lte(date) and date.lte(summer_end))
                 date = date.shiftHours(1);
 
-            try out.print("%{{+o}} {} {d:0>2} {} {d:0>2}:{d:0>2} %{{-o}} ", .{
+            try out.print("%{{+o}} {s} {d:0>2} {s} {d:0>2}:{d:0>2} %{{-o}} ", .{
                 date.date.monthName()[0..3],
                 date.date.day,
                 @tagName(date.date.dayOfWeek())[0..3],

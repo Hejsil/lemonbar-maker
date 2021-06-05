@@ -1,8 +1,9 @@
-const std = @import("std");
 const mecha = @import("mecha");
+const std = @import("std");
 
 const event = std.event;
 const fs = std.fs;
+const heap = std.heap;
 const log = std.log;
 
 const Message = @import("../message.zig").Message;
@@ -16,16 +17,18 @@ pub fn cpu(channel: *event.Channel(Message)) void {
     // we have room for systems with a lot more threads. This buffer size is just a
     // guess though.
     var buf: [1024 * 1024]u8 = undefined;
+    var fba = heap.FixedBufferAllocator.init("");
 
     while (true) {
         var content: []const u8 = cwd.readFile("/proc/stat", &buf) catch |err| {
             log.warn("Failed to read /proc/stat: {}", .{err});
             continue;
         };
-        if (first_line(content)) |res|
+        if (first_line(&fba.allocator, content)) |res| {
             content = res.rest;
+        } else |_| {}
 
-        while (line(content)) |result| : (content = result.rest) {
+        while (line(&fba.allocator, content)) |result| : (content = result.rest) {
             channel.put(.{
                 .cpu = .{
                     .id = result.value.id,
@@ -34,7 +37,7 @@ pub fn cpu(channel: *event.Channel(Message)) void {
                     .idle = result.value.cpu.idle,
                 },
             });
-        }
+        } else |_| {}
 
         loop.sleep(std.time.ns_per_s);
     }
@@ -60,19 +63,19 @@ pub const CpuInfo = struct {
 
 const first_line = mecha.combine(.{
     mecha.string("cpu"),
-    mecha.manyN(10, mecha.combine(.{
-        mecha.discard(mecha.many(mecha.ascii.char(' '))),
-        mecha.int(usize, 10),
-    })),
+    mecha.manyN(mecha.combine(.{
+        mecha.discard(mecha.many(mecha.ascii.char(' '), .{ .collect = false })),
+        mecha.int(usize, .{}),
+    }), 10, .{}),
     mecha.ascii.char('\n'),
 });
 
 const line = mecha.map(Cpu, mecha.toStruct(Cpu), mecha.combine(.{
     mecha.string("cpu"),
-    mecha.int(usize, 10),
-    mecha.map(CpuInfo, mecha.toStruct(CpuInfo), mecha.manyN(10, mecha.combine(.{
-        mecha.discard(mecha.many(mecha.ascii.char(' '))),
-        mecha.int(usize, 10),
-    }))),
+    mecha.int(usize, .{}),
+    mecha.map(CpuInfo, mecha.toStruct(CpuInfo), mecha.manyN(mecha.combine(.{
+        mecha.discard(mecha.many(mecha.ascii.char(' '), .{ .collect = false })),
+        mecha.int(usize, .{}),
+    }), 10, .{})),
     mecha.ascii.char('\n'),
 }));

@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const log = std.log;
 const event = std.event;
 const fs = std.fs;
+const log = std.log;
 
 const Message = @import("../message.zig").Message;
 
@@ -13,13 +13,13 @@ pub fn rss(channel: *event.Channel(Message), home_dir: fs.Dir) void {
     //       we wait for file system events, but it seems that Zigs `fs.Watch` haven't been
     //       worked on for a while, so I'm not gonna try using it.
     while (true) : (loop.sleep(std.time.ns_per_s * 10)) {
-        var unread = home_dir.openDir(".cache/rss/unread", .{ .iterate = true }) catch |err| {
-            return log.err("Failed to open .cache/rss/unread: {}", .{err});
+        var unread = home_dir.openDir(".local/share/rss/unread", .{ .iterate = true }) catch |err| {
+            return log.err("Failed to open .local/share/rss/unread: {}", .{err});
         };
         defer unread.close();
 
-        var read = home_dir.openDir(".cache/rss/read", .{ .iterate = true }) catch |err| {
-            return log.err("Failed to open .cache/rss/unread: {}", .{err});
+        var read = home_dir.openDir(".local/share/rss/read", .{ .iterate = true }) catch |err| {
+            return log.err("Failed to open .local/share/rss/unread: {}", .{err});
         };
         defer read.close();
 

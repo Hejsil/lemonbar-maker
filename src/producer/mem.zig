@@ -1,8 +1,9 @@
-const std = @import("std");
 const mecha = @import("mecha");
+const std = @import("std");
 
 const event = std.event;
 const fs = std.fs;
+const heap = std.heap;
 const log = std.log;
 
 const Message = @import("../message.zig").Message;
@@ -14,13 +15,14 @@ pub fn mem(channel: *event.Channel(Message)) void {
     // On my system, `cat /proc/meminfo | wc -c` gives 1419, so this buffer
     // should be enough to hold all data read from meminfo.
     var buf: [1024 * 10]u8 = undefined;
+    var fba = heap.FixedBufferAllocator.init("");
 
     while (true) {
         const content = cwd.readFile("/proc/meminfo", &buf) catch |err| {
             log.warn("Failed to read /proc/meminfo: {}", .{err});
             continue;
         };
-        const result = parser(content) orelse {
+        const result = parser(&fba.allocator, content) catch |_| {
             log.warn("Error while parsing /proc/meminfo", .{});
             continue;
         };
@@ -155,8 +157,8 @@ const parser = blk: {
 fn field(comptime name: []const u8) mecha.Parser(usize) {
     return mecha.combine(.{
         mecha.string(name ++ ":"),
-        mecha.discard(mecha.many(mecha.ascii.char(' '))),
-        mecha.int(usize, 10),
+        mecha.discard(mecha.many(mecha.ascii.char(' '), .{ .collect = false })),
+        mecha.int(usize, .{}),
         mecha.discard(mecha.opt(mecha.string(" kB"))),
         mecha.ascii.char('\n'),
     });

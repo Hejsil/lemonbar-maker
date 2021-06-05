@@ -38,7 +38,7 @@ pub fn bspwm(channel: *event.Channel(Message)) void {
 
         var it = mem.tokenize(lines, "\n");
         while (it.next()) |line| {
-            log.debug("bspwm report: {}", .{line});
+            log.debug("bspwm report: {s}", .{line});
             procesLine(line, channel);
         }
     }
