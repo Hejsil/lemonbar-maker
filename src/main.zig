@@ -194,9 +194,10 @@ fn renderer(allocator: *mem.Allocator, locked_state: *event.Locked(State), optio
     const out = std.ArrayList(u8).init(allocator).writer();
 
     const bars = [_][]const u8{
+        try std.fmt.allocPrint(allocator, "%{{F{s}}} ", .{options.low}),
         try std.fmt.allocPrint(allocator, "%{{F{s}}}▁", .{options.low}),
         try std.fmt.allocPrint(allocator, "%{{F{s}}}▂", .{options.low}),
-        try std.fmt.allocPrint(allocator, "%{{F{s}}}▃", .{options.low}),
+        try std.fmt.allocPrint(allocator, "%{{F{s}}}▃", .{options.mid}),
         try std.fmt.allocPrint(allocator, "%{{F{s}}}▄", .{options.mid}),
         try std.fmt.allocPrint(allocator, "%{{F{s}}}▅", .{options.mid}),
         try std.fmt.allocPrint(allocator, "%{{F{s}}}▆", .{options.high}),
