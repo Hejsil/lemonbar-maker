@@ -6,6 +6,7 @@ const sab = @import("sab");
 const std = @import("std");
 
 const event = std.event;
+const fmt = std.fmt;
 const fs = std.fs;
 const heap = std.heap;
 const io = std.io;
@@ -14,16 +15,15 @@ const math = std.math;
 const mem = std.mem;
 const process = std.process;
 
+const Datetime = datetime.Datetime;
+
 pub const io_mode = io.Mode.evented;
 
-const params = comptime blk: {
-    @setEvalBranchQuota(100000);
-    break :blk [_]clap.Param(clap.Help){
-        clap.parseParam("-h, --help           Print this message to stdout") catch unreachable,
-        clap.parseParam("-l, --low <COLOR>    The color when a bar is a low value.") catch unreachable,
-        clap.parseParam("-m, --mid <COLOR>    The color when a bar is a medium value.") catch unreachable,
-        clap.parseParam("-h, --high <COLOR>   The color when a bar is a high value.") catch unreachable,
-    };
+const params = [_]clap.Param(clap.Help){
+    clap.parseParam("-h, --help          Print this message to stdout") catch unreachable,
+    clap.parseParam("-l, --low <COLOR>   The color when a bar is a low value.") catch unreachable,
+    clap.parseParam("-m, --mid <COLOR>   The color when a bar is a medium value.") catch unreachable,
+    clap.parseParam("-h, --high <COLOR>  The color when a bar is a high value.") catch unreachable,
 };
 
 fn usage(stream: anytype) !void {
@@ -40,8 +40,8 @@ fn usage(stream: anytype) !void {
 }
 
 pub fn main() !void {
-    var gba = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = &gba.allocator;
+    var gba = heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gba.allocator();
     defer _ = gba.deinit();
 
     log.debug("Parsing arguments", .{});
@@ -64,8 +64,8 @@ pub fn main() !void {
     const home_dir_path = try process.getEnvVarOwned(allocator, "HOME");
     defer allocator.free(home_dir_path);
 
-    const home_dir = try fs.cwd().openDir(home_dir_path, .{});
-    //defer home_dir.close();
+    var home_dir = try fs.cwd().openDir(home_dir_path, .{});
+    defer home_dir.close();
 
     // Seems like ChildProcess is broken with `io_mode == .evented`
     // broken LLVM module found: Basic Block in function 'std.child_process.ChildProcess.spawnPosix'
@@ -73,30 +73,31 @@ pub fn main() !void {
     // label %OkResume
     //const xtitle = try std.ChildProcess.init(&[_][]const u8{"xtitle"}, allocator);
     //try xtitle.spawn();
+
     var buf: [128]message.Message = undefined;
     var channel: event.Channel(message.Message) = undefined;
     channel.init(&buf);
 
     // event.Locked.init doesn't compile...
     var locked_state = event.Locked(State){
-        .lock = event.Lock{},
-        .private_data = State{ .now = datetime.Datetime.now() },
+        .lock = .{},
+        .private_data = .{ .now = Datetime.now() },
     };
 
     log.debug("Setting up pipeline", .{});
-    const p1 = async producer.date(&channel);
-    const p2 = async producer.mem(&channel);
-    const p3 = async producer.cpu(&channel);
-    const p4 = async producer.rss(&channel, home_dir);
-    const p5 = async producer.mail(&channel, home_dir);
-    const p6 = async producer.bspwm(&channel);
-    const c1 = async consumer(&channel, &locked_state);
+    _ = async producer.date(&channel);
+    _ = async producer.mem(&channel);
+    _ = async producer.cpu(&channel);
+    _ = async producer.rss(&channel, home_dir);
+    _ = async producer.mail(&channel, home_dir);
+    _ = async producer.bspwm(&channel);
+    _ = async consumer(&channel, &locked_state);
     renderer(allocator, &locked_state, .{
         .low = low,
         .mid = mid,
         .high = high,
     }) catch |err| {
-        log.emerg("Failed to render bar: {}", .{err});
+        log.err("Failed to render bar: {}", .{err});
         return err;
     };
 
@@ -112,7 +113,7 @@ const Options = struct {
 // This structure should be deep copiable, so that the renderer can keep
 // track of a `prev` version of the state for comparison.
 const State = struct {
-    now: datetime.Datetime,
+    now: Datetime,
     mem_percent_used: u8 = 0,
     rss_unread: usize = 0,
     mail_unread: usize = 0,
@@ -188,52 +189,49 @@ fn consumer(channel: *event.Channel(message.Message), locked_state: *event.Locke
 // better to wait for a few more messages before drawing. The renderer will look at
 // the `locked_state` once in a while (N times per sec) and redraw of anything changed
 // from the last iteration.
-fn renderer(allocator: *mem.Allocator, locked_state: *event.Locked(State), options: Options) !void {
+fn renderer(
+    allocator: mem.Allocator,
+    locked_state: *event.Locked(State),
+    options: Options,
+) !void {
     const loop = event.Loop.instance.?;
     const stdout = io.getStdOut().writer();
-    const out = std.ArrayList(u8).init(allocator).writer();
+    var buf = std.ArrayList(u8).init(allocator);
+    var prev_buf = std.ArrayList(u8).init(allocator);
 
     const bars = [_][]const u8{
-        try std.fmt.allocPrint(allocator, "%{{F{s}}} ", .{options.low}),
-        try std.fmt.allocPrint(allocator, "%{{F{s}}}▁", .{options.low}),
-        try std.fmt.allocPrint(allocator, "%{{F{s}}}▂", .{options.low}),
-        try std.fmt.allocPrint(allocator, "%{{F{s}}}▃", .{options.mid}),
-        try std.fmt.allocPrint(allocator, "%{{F{s}}}▄", .{options.mid}),
-        try std.fmt.allocPrint(allocator, "%{{F{s}}}▅", .{options.mid}),
-        try std.fmt.allocPrint(allocator, "%{{F{s}}}▆", .{options.high}),
-        try std.fmt.allocPrint(allocator, "%{{F{s}}}▇", .{options.high}),
-        try std.fmt.allocPrint(allocator, "%{{F{s}}}█", .{options.high}),
+        try fmt.allocPrint(allocator, "%{{F{s}}} ", .{options.low}),
+        try fmt.allocPrint(allocator, "%{{F{s}}}▁", .{options.low}),
+        try fmt.allocPrint(allocator, "%{{F{s}}}▂", .{options.low}),
+        try fmt.allocPrint(allocator, "%{{F{s}}}▃", .{options.mid}),
+        try fmt.allocPrint(allocator, "%{{F{s}}}▄", .{options.mid}),
+        try fmt.allocPrint(allocator, "%{{F{s}}}▅", .{options.mid}),
+        try fmt.allocPrint(allocator, "%{{F{s}}}▆", .{options.high}),
+        try fmt.allocPrint(allocator, "%{{F{s}}}▇", .{options.high}),
+        try fmt.allocPrint(allocator, "%{{F{s}}}█", .{options.high}),
     };
 
-    var prev = blk: {
-        const held = locked_state.acquire();
-        defer held.release();
-        break :blk held.value.*;
-    };
     while (true) : (loop.sleep(std.time.ns_per_s / 15)) {
+        const out = buf.writer();
         const curr = blk: {
             const held = locked_state.acquire();
             defer held.release();
             break :blk held.value.*;
         };
 
-        if (std.meta.eql(prev, curr))
-            continue;
-
-        prev = curr;
         for (curr.monitors) |monitor, mon_id| {
             if (!monitor.is_active)
                 continue;
             try out.print("%{{S{}}}", .{mon_id});
 
-            try out.writeAll("%{l} ");
+            try out.writeAll("%{l} %{+o}");
             for (monitor.workspaces) |workspace, i| {
                 if (!workspace.is_active)
                     continue;
 
                 const focus: usize = @boolToInt(workspace.focused);
                 const occupied: usize = @boolToInt(workspace.occupied);
-                try out.print("%{{+o}}{s} {}{s}{s}%{{-o}}", .{
+                try out.print("{s} {}{s}{s}", .{
                     ([_][]const u8{ "", "%{+u}" })[focus],
                     i + 1,
                     ([_][]const u8{ " ", "*" })[occupied],
@@ -241,8 +239,11 @@ fn renderer(allocator: *mem.Allocator, locked_state: *event.Locked(State), optio
                 });
             }
 
-            try out.writeAll("%{r}");
-            try out.print("%{{+o}} mail:rss {:0>2}:{:0>2} %{{-o}} ", .{ curr.mail_unread, curr.rss_unread });
+            try out.writeAll("%{-o}%{r}");
+            try out.print("%{{+o}} mail:rss {:0>2}:{:0>2} %{{-o}} ", .{
+                curr.mail_unread,
+                curr.rss_unread,
+            });
 
             try out.writeAll("%{+o} ");
             try sab.draw(out, u8, curr.mem_percent_used, .{ .len = 1, .steps = &bars });
@@ -256,12 +257,13 @@ fn renderer(allocator: *mem.Allocator, locked_state: *event.Locked(State), optio
 
             // Danish daylight saving fixup code
             var date = curr.now;
-            const summer_start = try datetime.Datetime.create(date.date.year, 3, 28, 2, 0, 0, 0, date.zone);
-            const summer_end = try datetime.Datetime.create(date.date.year, 10, 31, 3, 0, 0, 0, date.zone);
+            const summer_start = try Datetime.create(date.date.year, 3, 28, 2, 0, 0, 0, date.zone);
+            const summer_end = try Datetime.create(date.date.year, 10, 31, 3, 0, 0, 0, date.zone);
             if (summer_start.lte(date) and date.lte(summer_end))
                 date = date.shiftHours(1);
 
-            try out.print("%{{+o}} {s} {d:0>2} {s} {d:0>2}:{d:0>2} %{{-o}} ", .{
+            try out.print("%{{+o}} Week {} {s} {d:0>2} {s} {d:0>2}:{d:0>2} %{{-o}} ", .{
+                date.date.weekOfYear(),
                 date.date.monthName()[0..3],
                 date.date.day,
                 @tagName(date.date.dayOfWeek())[0..3],
@@ -270,7 +272,13 @@ fn renderer(allocator: *mem.Allocator, locked_state: *event.Locked(State), optio
             });
         }
         try out.writeAll("\n");
-        try stdout.writeAll(out.context.items);
-        out.context.shrinkRetainingCapacity(0);
+
+        // If nothing changed from prev iteration, then there is no reason to output it.
+        if (!mem.eql(u8, buf.items, prev_buf.items)) {
+            try stdout.writeAll(buf.items);
+            mem.swap(std.ArrayList(u8), &buf, &prev_buf);
+        }
+
+        buf.shrinkRetainingCapacity(0);
     }
 }

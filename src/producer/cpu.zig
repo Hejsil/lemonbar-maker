@@ -24,11 +24,11 @@ pub fn cpu(channel: *event.Channel(Message)) void {
             log.warn("Failed to read /proc/stat: {}", .{err});
             continue;
         };
-        if (first_line(&fba.allocator, content)) |res| {
+        if (first_line(fba.allocator(), content)) |res| {
             content = res.rest;
         } else |_| {}
 
-        while (line(&fba.allocator, content)) |result| : (content = result.rest) {
+        while (line(fba.allocator(), content)) |result| : (content = result.rest) {
             channel.put(.{
                 .cpu = .{
                     .id = result.value.id,

@@ -41,7 +41,7 @@ pub const Mail = struct {
 
 fn count(root: fs.Dir) !Mail {
     var buf: [1024 * 1024]u8 = undefined;
-    const fba = &heap.FixedBufferAllocator.init(&buf).allocator;
+    const fba = heap.FixedBufferAllocator.init(&buf).allocator();
     var stack = std.ArrayList(fs.Dir).init(fba);
 
     var res = Mail{ .unread = 0, .read = 0 };

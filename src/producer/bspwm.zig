@@ -15,13 +15,13 @@ pub fn bspwm(channel: *event.Channel(Message)) void {
     const loop = event.Loop.instance.?;
 
     // TODO: Don't hardcode path to bspwm socket
-    const sock_addr = os.sockaddr_un{ .path = ("/tmp/bspwm_0_0-socket" ++ "\x00" ** 87).* };
-    const socket = os.socket(os.AF_UNIX, os.SOCK_STREAM, 0) catch |err| {
+    const sock_addr = os.sockaddr.un{ .path = ("/tmp/bspwm_0_0-socket" ++ "\x00" ** 87).* };
+    const socket = os.socket(os.AF.UNIX, os.SOCK.STREAM, 0) catch |err| {
         return log.err("Failed to get bspwm socket: {}", .{err});
     };
     defer os.close(socket);
 
-    loop.connect(socket, @ptrCast(*const os.sockaddr, &sock_addr), @sizeOf(os.sockaddr_un)) catch |err| {
+    loop.connect(socket, @ptrCast(*const os.sockaddr, &sock_addr), @sizeOf(os.sockaddr.un)) catch |err| {
         return log.err("Failed to connect to bspwm socket: {}", .{err});
     };
     _ = loop.sendto(socket, "subscribe\x00report\x00", 0, null, 0) catch |err| {
@@ -34,22 +34,25 @@ pub fn bspwm(channel: *event.Channel(Message)) void {
             log.warn("Failed to read data from bspwm socket: {}", .{err});
             continue;
         };
-        const lines = buf[1..len]; // Remove leading 'W'
+        const lines = buf[0..len];
 
-        var it = mem.tokenize(lines, "\n");
-        while (it.next()) |line| {
-            log.debug("bspwm report: {s}", .{line});
-            procesLine(line, channel);
-        }
+        // Skip to the last line an only process that
+        var it = mem.tokenize(u8, lines, "\n");
+        var last = it.next().?;
+        while (it.next()) |next| : (last = next) {}
+
+        const line = last[1..]; // Remove leading 'W'
+        log.debug("bspwm report: {s}", .{line});
+        processLine(line, channel);
     }
 }
 
-fn procesLine(line: []const u8, channel: *event.Channel(Message)) void {
+fn processLine(line: []const u8, channel: *event.Channel(Message)) void {
     var curr_monitor: usize = 0;
     var next_monitor: usize = 0;
     var curr_workspace: usize = 0;
 
-    var it = mem.tokenize(line, ":");
+    var it = mem.tokenize(u8, line, ":");
     while (it.next()) |item| {
         var name: [7:0]u8 = [1:0]u8{0} ** 7;
         mem.copy(u8, &name, item[0..math.min(item.len, 7)]);

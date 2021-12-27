@@ -22,7 +22,7 @@ pub fn mem(channel: *event.Channel(Message)) void {
             log.warn("Failed to read /proc/meminfo: {}", .{err});
             continue;
         };
-        const result = parser(&fba.allocator, content) catch |_| {
+        const result = parser(fba.allocator(), content) catch {
             log.warn("Error while parsing /proc/meminfo", .{});
             continue;
         };
