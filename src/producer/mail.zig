@@ -25,12 +25,10 @@ pub fn mail(channel: *event.Channel(Message), home_dir: fs.Dir) void {
             continue;
         };
 
-        channel.put(.{
-            .mail = .{
-                .read = res.read,
-                .unread = res.unread,
-            },
-        });
+        channel.put(.{ .mail = .{
+            .read = res.read,
+            .unread = res.unread,
+        } });
     }
 }
 
