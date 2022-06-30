@@ -19,16 +19,19 @@ const Datetime = datetime.Datetime;
 
 pub const io_mode = io.Mode.evented;
 
-const params = [_]clap.Param(clap.Help){
-    clap.parseParam("-h, --help          Print this message to stdout") catch unreachable,
-    clap.parseParam("-l, --low <COLOR>   The color when a bar is a low value.") catch unreachable,
-    clap.parseParam("-m, --mid <COLOR>   The color when a bar is a medium value.") catch unreachable,
-    clap.parseParam("-h, --high <COLOR>  The color when a bar is a high value.") catch unreachable,
-};
+const parsers = .{ .COLOR = clap.parsers.string };
+
+const params = clap.parseParamsComptime(
+    \\-h, --help          Print this message to stdout
+    \\-l, --low <COLOR>   The color when a bar is a low value
+    \\-m, --mid <COLOR>   The color when a bar is a medium value
+    \\-h, --high <COLOR>  The color when a bar is a high value
+    \\
+);
 
 fn usage(stream: anytype) !void {
     try stream.writeAll("Usage: ");
-    try clap.usage(stream, &params);
+    try clap.usage(stream, clap.Help, &params);
     try stream.writeAll(
         \\
         \\Help message here
@@ -36,7 +39,7 @@ fn usage(stream: anytype) !void {
         \\Options:
         \\
     );
-    try clap.help(stream, &params);
+    try clap.help(stream, clap.Help, &params, .{});
 }
 
 pub fn main() !void {
@@ -46,19 +49,21 @@ pub fn main() !void {
 
     log.debug("Parsing arguments", .{});
     var diag = clap.Diagnostic{};
-    var args = clap.parse(clap.Help, &params, .{ .diagnostic = &diag }) catch |err| {
+    var clap_res = clap.parse(clap.Help, &params, parsers, .{ .diagnostic = &diag }) catch |err| {
         const stderr = io.getStdErr().writer();
         diag.report(stderr, err) catch {};
         usage(stderr) catch {};
         return err;
     };
+    defer clap_res.deinit();
 
-    if (args.flag("--help"))
+    const args = clap_res.args;
+    if (args.help)
         return try usage(io.getStdOut().writer());
 
-    const low = args.option("--low") orelse "-";
-    const mid = args.option("--mid") orelse "-";
-    const high = args.option("--high") orelse "-";
+    const low = args.low orelse "-";
+    const mid = args.mid orelse "-";
+    const high = args.high orelse "-";
 
     log.debug("Getting $HOME", .{});
     const home_dir_path = try process.getEnvVarOwned(allocator, "HOME");
@@ -224,61 +229,141 @@ fn renderer(
                 continue;
             try out.print("%{{S{}}}", .{mon_id});
 
-            try out.writeAll("%{l} %{+o}");
-            for (monitor.workspaces) |workspace, i| {
-                if (!workspace.is_active)
-                    continue;
+            try left(out);
+            try out.writeAll(" ");
+            try workspaceBlock(out, &monitor.workspaces);
 
-                const focus: usize = @boolToInt(workspace.focused);
-                const occupied: usize = @boolToInt(workspace.occupied);
-                try out.print("{s} {}{s}{s}", .{
-                    ([_][]const u8{ "", "%{+u}" })[focus],
-                    i + 1,
-                    ([_][]const u8{ " ", "*" })[occupied],
-                    ([_][]const u8{ "", "%{-u}" })[focus],
-                });
-            }
+            try center(out);
+            try memoryBlock(out, options, curr.mem_percent_used);
+            try out.writeAll(" ");
+            try cpuBlock(out, options, &bars, &curr.cpu_percent);
 
-            try out.writeAll("%{-o}%{r}");
-            try out.print("%{{+o}} mail:rss {:0>2}:{:0>2} %{{-o}} ", .{
-                curr.mail_unread,
-                curr.rss_unread,
-            });
-
-            try out.writeAll("%{+o} ");
-            try sab.draw(out, u8, curr.mem_percent_used, .{ .len = 1, .steps = &bars });
-            try out.writeAll("%{F-}  ");
-
-            for (curr.cpu_percent) |m_cpu| {
-                const cpu = m_cpu orelse continue;
-                try sab.draw(out, u8, cpu, .{ .len = 1, .steps = &bars });
-            }
-            try out.writeAll("%{F-} %{-o} ");
-
-            // Danish daylight saving fixup code
-            var date = curr.now;
-            const summer_start = try Datetime.create(date.date.year, 3, 28, 2, 0, 0, 0, date.zone);
-            const summer_end = try Datetime.create(date.date.year, 10, 31, 3, 0, 0, 0, date.zone);
-            if (summer_start.lte(date) and date.lte(summer_end))
-                date = date.shiftHours(1);
-
-            try out.print("%{{+o}} Week {} {s} {d:0>2} {s} {d:0>2}:{d:0>2} %{{-o}} ", .{
-                date.date.weekOfYear(),
-                date.date.monthName()[0..3],
-                date.date.day,
-                @tagName(date.date.dayOfWeek())[0..3],
-                date.time.hour,
-                date.time.minute,
-            });
+            try right(out);
+            try basicBlock(out, "mail {:>2}", .{curr.mail_unread});
+            try out.writeAll(" ");
+            try basicBlock(out, "rss {:>2}", .{curr.rss_unread});
+            try out.writeAll(" ");
+            try dateBlock(out, curr.now);
+            try out.writeAll(" ");
         }
         try out.writeAll("\n");
 
-        // If nothing changed from prev iteration, then there is no reason to output it.
         if (!mem.eql(u8, buf.items, prev_buf.items)) {
+            // If nothing changed from prev iteration, then there is no reason to output it.
             try stdout.writeAll(buf.items);
             mem.swap(std.ArrayList(u8), &buf, &prev_buf);
         }
 
         buf.shrinkRetainingCapacity(0);
     }
+}
+
+fn workspaceBlock(writer: anytype, workspaces: []const Workspace) !void {
+    try writer.writeAll("%{+o}");
+    for (workspaces) |workspace, i| {
+        if (!workspace.is_active)
+            continue;
+
+        const focus: usize = @boolToInt(workspace.focused);
+        const occupied: usize = @boolToInt(workspace.occupied);
+        try writer.print("{s} {}{s}{s}", .{
+            ([_][]const u8{ "", "%{+u}" })[focus],
+            i + 1,
+            ([_][]const u8{ " ", "*" })[occupied],
+            ([_][]const u8{ "", "%{-u}" })[focus],
+        });
+    }
+    try writer.writeAll("%{-o}");
+}
+
+fn memoryBlock(writer: anytype, options: Options, memory_percent: usize) !void {
+    const color = percentToColor(memory_percent, options);
+
+    try blockBegin(writer);
+    try writer.writeAll("mem ");
+    try writer.print("%{{F{s}}}{:>2}%%%{{F-}}", .{ color, memory_percent });
+    try blockEnd(writer);
+}
+
+fn cpuBlock(
+    writer: anytype,
+    options: Options,
+    bars: []const []const u8,
+    cpu_percent: []const ?u8,
+) !void {
+    try blockBegin(writer);
+    var total: usize = 0;
+    var count: usize = 0;
+    for (cpu_percent) |m_cpu| {
+        const cpu = m_cpu orelse continue;
+        total += cpu;
+        count += 1;
+        try sab.draw(writer, u8, cpu, .{ .len = 1, .steps = bars });
+    }
+    try writer.writeAll("%{F-}");
+    try blockEnd(writer);
+
+    const percent = if (count == 0) 0 else total / count;
+    const color = percentToColor(percent, options);
+    try writer.writeAll(" ");
+    try blockBegin(writer);
+    try writer.writeAll("cpu ");
+    try writer.print("%{{F{s}}}{:>2}%%", .{ color, percent });
+    try writer.writeAll("%{F-}");
+    try blockEnd(writer);
+}
+
+fn dateBlock(writer: anytype, now: Datetime) !void {
+
+    // Danish daylight saving fixup code
+    var date = now;
+    const summer_start = try Datetime.create(date.date.year, 3, 28, 2, 0, 0, 0, date.zone);
+    const summer_end = try Datetime.create(date.date.year, 10, 31, 3, 0, 0, 0, date.zone);
+    if (summer_start.lte(date) and date.lte(summer_end))
+        date = date.shiftHours(1);
+
+    try blockBegin(writer);
+    try writer.print("Week {} {s} {d:0>2} {s} {d:0>2}:{d:0>2}", .{
+        date.date.weekOfYear(),
+        date.date.monthName()[0..3],
+        date.date.day,
+        @tagName(date.date.dayOfWeek())[0..3],
+        date.time.hour,
+        date.time.minute,
+    });
+    try blockEnd(writer);
+}
+
+fn basicBlock(writer: anytype, comptime format: []const u8, args: anytype) !void {
+    try blockBegin(writer);
+    try writer.print(format, args);
+    try blockEnd(writer);
+}
+
+fn left(writer: anytype) !void {
+    try writer.writeAll("%{l}");
+}
+
+fn center(writer: anytype) !void {
+    try writer.writeAll("%{c}");
+}
+
+fn right(writer: anytype) !void {
+    try writer.writeAll("%{r}");
+}
+
+fn blockBegin(writer: anytype) !void {
+    try writer.writeAll("%{+o} ");
+}
+
+fn blockEnd(writer: anytype) !void {
+    try writer.writeAll(" %{-o}");
+}
+
+fn percentToColor(percent: usize, options: Options) []const u8 {
+    return switch (percent / 33) {
+        0 => options.low,
+        1 => options.mid,
+        else => options.high,
+    };
 }
