@@ -13,12 +13,12 @@ pub fn rss(channel: *event.Channel(Message), home_dir: fs.Dir) void {
     //       we wait for file system events, but it seems that Zigs `fs.Watch` haven't been
     //       worked on for a while, so I'm not gonna try using it.
     while (true) : (loop.sleep(std.time.ns_per_s * 10)) {
-        var unread = home_dir.openDir(".local/share/rss/unread", .{ .iterate = true }) catch |err| {
+        var unread = home_dir.openIterableDir(".local/share/rss/unread", .{}) catch |err| {
             return log.err("Failed to open .local/share/rss/unread: {}", .{err});
         };
         defer unread.close();
 
-        var read = home_dir.openDir(".local/share/rss/read", .{ .iterate = true }) catch |err| {
+        var read = home_dir.openIterableDir(".local/share/rss/read", .{}) catch |err| {
             return log.err("Failed to open .local/share/rss/unread: {}", .{err});
         };
         defer read.close();
@@ -45,7 +45,7 @@ pub const Rss = struct {
     read: usize,
 };
 
-fn count(dir: fs.Dir) !usize {
+fn count(dir: fs.IterableDir) !usize {
     var res: usize = 0;
     var it = dir.iterate();
     while (try it.next()) |_|

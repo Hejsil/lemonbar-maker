@@ -21,5 +21,6 @@ pub fn build(b: *Builder) void {
         obj.addPackagePath("sab", "lib/sab/src/main.zig");
         obj.setBuildMode(mode);
         obj.setTarget(target);
+        obj.use_stage1 = true;
     }
 }
