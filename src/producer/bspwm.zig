@@ -9,11 +9,9 @@ const mem = std.mem;
 const os = std.os;
 const process = std.process;
 
-const Message = @import("../message.zig").Message;
+const State = @import("../main.zig").State;
 
-pub fn bspwm(channel: *event.Channel(Message)) void {
-    const loop = event.Loop.instance.?;
-
+pub fn bspwm(state: *State) void {
     // TODO: Don't hardcode path to bspwm socket
     const sock_addr = os.sockaddr.un{ .path = ("/tmp/bspwm_0_0-socket" ++ "\x00" ** 87).* };
     const socket = os.socket(os.AF.UNIX, os.SOCK.STREAM, 0) catch |err| {
@@ -21,16 +19,16 @@ pub fn bspwm(channel: *event.Channel(Message)) void {
     };
     defer os.close(socket);
 
-    loop.connect(socket, @ptrCast(*const os.sockaddr, &sock_addr), @sizeOf(os.sockaddr.un)) catch |err| {
+    os.connect(socket, @ptrCast(*const os.sockaddr, &sock_addr), @sizeOf(os.sockaddr.un)) catch |err| {
         return log.err("Failed to connect to bspwm socket: {}", .{err});
     };
-    _ = loop.sendto(socket, "subscribe\x00report\x00", 0, null, 0) catch |err| {
+    _ = os.sendto(socket, "subscribe\x00report\x00", 0, null, 0) catch |err| {
         return log.err("Failed to subscribe to bspwm reports: {}", .{err});
     };
 
     var buf: [1024]u8 = undefined;
     while (true) {
-        const len = loop.recvfrom(socket, &buf, 0, null, null) catch |err| {
+        const len = os.recvfrom(socket, &buf, 0, null, null) catch |err| {
             log.warn("Failed to read data from bspwm socket: {}", .{err});
             continue;
         };
@@ -43,11 +41,14 @@ pub fn bspwm(channel: *event.Channel(Message)) void {
 
         const line = last[1..]; // Remove leading 'W'
         log.debug("bspwm report: {s}", .{line});
-        processLine(line, channel);
+        processLine(line, state);
     }
 }
 
-fn processLine(line: []const u8, channel: *event.Channel(Message)) void {
+fn processLine(line: []const u8, state: *State) void {
+    state.mutex.lock();
+    defer state.mutex.unlock();
+
     var curr_monitor: usize = 0;
     var next_monitor: usize = 0;
     var curr_workspace: usize = 0;
@@ -64,16 +65,14 @@ fn processLine(line: []const u8, channel: *event.Channel(Message)) void {
                 next_monitor += 1;
             },
             'O', 'o', 'F', 'f', 'U', 'u' => {
-                channel.put(.{
-                    .workspace = .{
-                        .id = curr_workspace,
-                        .monitor_id = curr_monitor,
-                        .flags = .{
-                            .focused = ascii.isUpper(item[0]),
-                            .occupied = ascii.toUpper(item[0]) != 'F',
-                        },
-                    },
-                });
+                const mon = &state.monitors[curr_monitor];
+                mon.is_active = true;
+                mon.workspaces[curr_workspace] = .{
+                    .is_active = true,
+                    .focused = ascii.isUpper(item[0]),
+                    .occupied = ascii.toUpper(item[0]) != 'F',
+                };
+
                 curr_workspace += 1;
             },
             else => {},

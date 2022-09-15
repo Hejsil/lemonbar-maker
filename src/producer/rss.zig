@@ -4,46 +4,37 @@ const event = std.event;
 const fs = std.fs;
 const log = std.log;
 
-const Message = @import("../message.zig").Message;
+const State = @import("../main.zig").State;
 
-pub fn rss(channel: *event.Channel(Message), home_dir: fs.Dir) void {
-    const loop = event.Loop.instance.?;
-
+pub fn rss(state: *State, home_dir: fs.Dir) void {
     // TODO: Currently we just count the unread rss feeds every so often. In an ideal world,
     //       we wait for file system events, but it seems that Zigs `fs.Watch` haven't been
     //       worked on for a while, so I'm not gonna try using it.
-    while (true) : (loop.sleep(std.time.ns_per_s * 10)) {
+    while (true) : (std.time.sleep(std.time.ns_per_s * 10)) {
         var unread = home_dir.openIterableDir(".local/share/rss/unread", .{}) catch |err| {
             return log.err("Failed to open .local/share/rss/unread: {}", .{err});
         };
         defer unread.close();
 
-        var read = home_dir.openIterableDir(".local/share/rss/read", .{}) catch |err| {
-            return log.err("Failed to open .local/share/rss/unread: {}", .{err});
-        };
-        defer read.close();
+        // var read = home_dir.openIterableDir(".local/share/rss/read", .{}) catch |err| {
+        //     return log.err("Failed to open .local/share/rss/unread: {}", .{err});
+        // };
+        // defer read.close();
 
         const unread_rss = count(unread) catch |err| {
             log.warn("Failed to read unread rss: {}", .{err});
             continue;
         };
-        const read_rss = count(read) catch |err| {
-            log.warn("Failed to read read rss: {}", .{err});
-            continue;
-        };
-        channel.put(.{
-            .rss = .{
-                .unread = unread_rss,
-                .read = read_rss,
-            },
-        });
+        // const read_rss = count(read) catch |err| {
+        //     log.warn("Failed to read read rss: {}", .{err});
+        //     continue;
+        // };
+
+        state.mutex.lock();
+        state.rss_unread = unread_rss;
+        state.mutex.unlock();
     }
 }
-
-pub const Rss = struct {
-    unread: usize,
-    read: usize,
-};
 
 fn count(dir: fs.IterableDir) !usize {
     var res: usize = 0;

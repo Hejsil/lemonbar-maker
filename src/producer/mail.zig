@@ -6,15 +6,13 @@ const heap = std.heap;
 const log = std.log;
 const mem = std.mem;
 
-const Message = @import("../message.zig").Message;
+const State = @import("../main.zig").State;
 
-pub fn mail(channel: *event.Channel(Message), home_dir: fs.Dir) void {
-    const loop = event.Loop.instance.?;
-
+pub fn mail(state: *State, home_dir: fs.Dir) void {
     // TODO: Currently we just count the mails every so often. In an ideal world,
     //       we wait for file system events, but it seems that Zigs `fs.Watch` haven't been
     //       worked on for a while, so I'm not gonna try using it.
-    while (true) : (loop.sleep(std.time.ns_per_s * 10)) {
+    while (true) : (std.time.sleep(std.time.ns_per_s * 10)) {
         var mail_dir = home_dir.openIterableDir(".local/share/mail", .{}) catch |err| {
             return log.err("Failed to open .local/share/mail: {}", .{err});
         };
@@ -25,14 +23,13 @@ pub fn mail(channel: *event.Channel(Message), home_dir: fs.Dir) void {
             continue;
         };
 
-        channel.put(.{ .mail = .{
-            .read = res.read,
-            .unread = res.unread,
-        } });
+        state.mutex.lock();
+        state.mail_unread = res.unread;
+        state.mutex.unlock();
     }
 }
 
-pub const Mail = struct {
+const Mail = struct {
     unread: usize,
     read: usize,
 };

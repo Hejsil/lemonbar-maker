@@ -1,6 +1,5 @@
 const clap = @import("clap");
 const datetime = @import("datetime");
-const message = @import("message.zig");
 const producer = @import("producer.zig");
 const sab = @import("sab");
 const std = @import("std");
@@ -16,8 +15,6 @@ const mem = std.mem;
 const process = std.process;
 
 const Datetime = datetime.Datetime;
-
-pub const io_mode = io.Mode.evented;
 
 const parsers = .{ .COLOR = clap.parsers.string };
 
@@ -79,25 +76,17 @@ pub fn main() !void {
     //const xtitle = try std.ChildProcess.init(&[_][]const u8{"xtitle"}, allocator);
     //try xtitle.spawn();
 
-    var buf: [128]message.Message = undefined;
-    var channel: event.Channel(message.Message) = undefined;
-    channel.init(&buf);
-
-    // event.Locked.init doesn't compile...
-    var locked_state = event.Locked(State){
-        .lock = .{},
-        .private_data = .{ .now = Datetime.now() },
-    };
+    var state = State{ .now = Datetime.now() };
 
     log.debug("Setting up pipeline", .{});
-    _ = async producer.date(&channel);
-    _ = async producer.mem(&channel);
-    _ = async producer.cpu(&channel);
-    _ = async producer.rss(&channel, home_dir);
-    _ = async producer.mail(&channel, home_dir);
-    _ = async producer.bspwm(&channel);
-    _ = async consumer(&channel, &locked_state);
-    renderer(allocator, &locked_state, .{
+    _ = try std.Thread.spawn(.{}, producer.date, .{&state});
+    _ = try std.Thread.spawn(.{}, producer.date, .{&state});
+    _ = try std.Thread.spawn(.{}, producer.mem, .{&state});
+    _ = try std.Thread.spawn(.{}, producer.cpu, .{&state});
+    _ = try std.Thread.spawn(.{}, producer.rss, .{ &state, home_dir });
+    _ = try std.Thread.spawn(.{}, producer.mail, .{ &state, home_dir });
+    _ = try std.Thread.spawn(.{}, producer.bspwm, .{&state});
+    renderer(allocator, &state, .{
         .low = low,
         .mid = mid,
         .high = high,
@@ -117,7 +106,8 @@ const Options = struct {
 
 // This structure should be deep copiable, so that the renderer can keep
 // track of a `prev` version of the state for comparison.
-const State = struct {
+pub const State = struct {
+    mutex: std.Thread.Mutex = .{},
     now: Datetime,
     mem_percent_used: u8 = 0,
     rss_unread: usize = 0,
@@ -139,55 +129,6 @@ const Workspace = packed struct {
     occupied: bool = false,
 };
 
-fn consumer(channel: *event.Channel(message.Message), locked_state: *event.Locked(State)) void {
-    const Cpu = struct {
-        user: usize = 0,
-        sys: usize = 0,
-        idle: usize = 0,
-    };
-
-    var cpu_last = [_]Cpu{.{}} ** 128;
-    while (true) {
-        const change = channel.get();
-        const held = locked_state.acquire();
-        const state = held.value;
-        defer held.release();
-
-        switch (change) {
-            .date => |now| state.now = now,
-            .rss => |rss| state.rss_unread = rss.unread,
-            .mail => |mail| state.mail_unread = mail.unread,
-            .mem => |memory| {
-                const used = memory.total - memory.available;
-                state.mem_percent_used = @intCast(u8, (used * 100) / memory.total);
-            },
-            .cpu => |cpu| {
-                const i = cpu.id;
-                const last = cpu_last[i];
-                const user = math.sub(usize, cpu.user, last.user) catch 0;
-                const sys = math.sub(usize, cpu.sys, last.sys) catch 0;
-                const idle = math.sub(usize, cpu.idle, last.idle) catch 0;
-                const cpu_usage = ((user + sys) * 100) / math.max(1, user + sys + idle);
-                state.cpu_percent[i] = @intCast(u8, cpu_usage);
-                cpu_last[i] = .{
-                    .user = cpu.user,
-                    .sys = cpu.sys,
-                    .idle = cpu.idle,
-                };
-            },
-            .workspace => |workspace| {
-                const mon = &state.monitors[workspace.monitor_id];
-                mon.is_active = true;
-                mon.workspaces[workspace.id] = .{
-                    .is_active = true,
-                    .focused = workspace.flags.focused,
-                    .occupied = workspace.flags.occupied,
-                };
-            },
-        }
-    }
-}
-
 // We seperate the renderer loop from the consumer loop, so that we can throttle
 // how often we redraw the bar. If the consumer was to render the bar on every message,
 // we would output multible bars when something happends close together. It is just
@@ -196,10 +137,9 @@ fn consumer(channel: *event.Channel(message.Message), locked_state: *event.Locke
 // from the last iteration.
 fn renderer(
     allocator: mem.Allocator,
-    locked_state: *event.Locked(State),
+    state: *State,
     options: Options,
 ) !void {
-    const loop = event.Loop.instance.?;
     const stdout = io.getStdOut().writer();
     var buf = std.ArrayList(u8).init(allocator);
     var prev_buf = std.ArrayList(u8).init(allocator);
@@ -216,12 +156,12 @@ fn renderer(
         try fmt.allocPrint(allocator, "%{{F{s}}}█", .{options.high}),
     };
 
-    while (true) : (loop.sleep(std.time.ns_per_s / 15)) {
+    while (true) : (std.time.sleep(std.time.ns_per_s / 15)) {
         const out = buf.writer();
         const curr = blk: {
-            const held = locked_state.acquire();
-            defer held.release();
-            break :blk held.value.*;
+            state.mutex.lock();
+            defer state.mutex.unlock();
+            break :blk state.*;
         };
 
         for (curr.monitors) |monitor, mon_id| {

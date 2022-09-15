@@ -5,11 +5,11 @@ const event = std.event;
 const fs = std.fs;
 const heap = std.heap;
 const log = std.log;
+const math = std.math;
 
-const Message = @import("../message.zig").Message;
+const State = @import("../main.zig").State;
 
-pub fn cpu(channel: *event.Channel(Message)) void {
-    const loop = event.Loop.instance.?;
+pub fn cpu(state: *State) void {
     const cwd = fs.cwd();
 
     // On my system, `cat /proc/meminfo | wc -c` gives 3574. This is with a system
@@ -18,6 +18,8 @@ pub fn cpu(channel: *event.Channel(Message)) void {
     // guess though.
     var buf: [1024 * 1024]u8 = undefined;
     var fba = heap.FixedBufferAllocator.init("");
+
+    var cpu_last = [_]CpuLast{.{}} ** 128;
 
     while (true) {
         var content: []const u8 = cwd.readFile("/proc/stat", &buf) catch |err| {
@@ -28,27 +30,40 @@ pub fn cpu(channel: *event.Channel(Message)) void {
             content = res.rest;
         } else |_| {}
 
+        state.mutex.lock();
         while (line(fba.allocator(), content)) |result| : (content = result.rest) {
-            channel.put(.{
-                .cpu = .{
-                    .id = result.value.id,
-                    .user = result.value.cpu.user,
-                    .sys = result.value.cpu.sys,
-                    .idle = result.value.cpu.idle,
-                },
-            });
+            const info = result.value.info;
+            const i = result.value.id;
+            const last = cpu_last[i];
+            const user = math.sub(usize, info.user, last.user) catch 0;
+            const sys = math.sub(usize, info.sys, last.sys) catch 0;
+            const idle = math.sub(usize, info.idle, last.idle) catch 0;
+            const cpu_usage = ((user + sys) * 100) / math.max(1, user + sys + idle);
+            state.cpu_percent[i] = @intCast(u8, cpu_usage);
+            cpu_last[i] = .{
+                .user = info.user,
+                .sys = info.sys,
+                .idle = info.idle,
+            };
         } else |_| {}
+        state.mutex.unlock();
 
-        loop.sleep(std.time.ns_per_s);
+        std.time.sleep(std.time.ns_per_s);
     }
 }
 
-pub const Cpu = struct {
-    id: usize,
-    cpu: CpuInfo,
+const CpuLast = struct {
+    user: usize = 0,
+    sys: usize = 0,
+    idle: usize = 0,
 };
 
-pub const CpuInfo = struct {
+const Cpu = struct {
+    id: usize,
+    info: CpuInfo,
+};
+
+const CpuInfo = struct {
     user: usize,
     nice: usize,
     sys: usize,
