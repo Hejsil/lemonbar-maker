@@ -179,9 +179,9 @@ fn renderer(
             try cpuBlock(out, options, &bars, &curr.cpu_percent);
 
             try right(out);
-            try basicBlock(out, "mail {:>2}", .{curr.mail_unread});
+            try basicBlock(out, "mail{:>3}", .{curr.mail_unread});
             try out.writeAll(" ");
-            try basicBlock(out, "rss {:>2}", .{curr.rss_unread});
+            try basicBlock(out, "rss{:>3}", .{curr.rss_unread});
             try out.writeAll(" ");
             try dateBlock(out, curr.now);
             try out.writeAll(" ");
@@ -220,8 +220,8 @@ fn memoryBlock(writer: anytype, options: Options, memory_percent: usize) !void {
     const color = percentToColor(memory_percent, options);
 
     try blockBegin(writer);
-    try writer.writeAll("mem ");
-    try writer.print("%{{F{s}}}{:>2}%%%{{F-}}", .{ color, memory_percent });
+    try writer.writeAll("mem");
+    try writer.print("%{{F{s}}}{:>3}%%%{{F-}}", .{ color, memory_percent });
     try blockEnd(writer);
 }
 
@@ -247,8 +247,8 @@ fn cpuBlock(
     const color = percentToColor(percent, options);
     try writer.writeAll(" ");
     try blockBegin(writer);
-    try writer.writeAll("cpu ");
-    try writer.print("%{{F{s}}}{:>2}%%", .{ color, percent });
+    try writer.writeAll("cpu");
+    try writer.print("%{{F{s}}}{:>3}%%", .{ color, percent });
     try writer.writeAll("%{F-}");
     try blockEnd(writer);
 }
