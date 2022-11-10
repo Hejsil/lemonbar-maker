@@ -80,8 +80,7 @@ pub fn main() !void {
 
     log.debug("Setting up pipeline", .{});
     _ = try std.Thread.spawn(.{}, producer.date, .{&state});
-    _ = try std.Thread.spawn(.{}, producer.date, .{&state});
-    _ = try std.Thread.spawn(.{}, producer.mem, .{&state});
+    _ = try std.Thread.spawn(.{}, producer.memory, .{&state});
     _ = try std.Thread.spawn(.{}, producer.cpu, .{&state});
     _ = try std.Thread.spawn(.{}, producer.rss, .{ &state, home_dir });
     _ = try std.Thread.spawn(.{}, producer.mail, .{ &state, home_dir });
@@ -257,8 +256,10 @@ fn dateBlock(writer: anytype, now: Datetime) !void {
 
     // Danish daylight saving fixup code
     var date = now;
-    const summer_start = try Datetime.create(date.date.year, 3, 28, 2, 0, 0, 0, date.zone);
-    const summer_end = try Datetime.create(date.date.year, 10, 31, 3, 0, 0, 0, date.zone);
+    const summer_start_day = try lastWeekDayOfTheMonth(date.date.year, 3, .Sunday);
+    const summer_end_day = try lastWeekDayOfTheMonth(date.date.year, 10, .Sunday);
+    const summer_start = try Datetime.create(date.date.year, 3, summer_start_day, 2, 0, 0, 0, date.zone);
+    const summer_end = try Datetime.create(date.date.year, 10, summer_end_day, 3, 0, 0, 0, date.zone);
     if (summer_start.lte(date) and date.lte(summer_end))
         date = date.shiftHours(1);
 
@@ -272,6 +273,18 @@ fn dateBlock(writer: anytype, now: Datetime) !void {
         date.time.minute,
     });
     try blockEnd(writer);
+}
+
+fn lastWeekDayOfTheMonth(year: u32, month: u32, weekday: datetime.Weekday) !u32 {
+    var date = try datetime.Date.create(year, month, 1);
+    while (date.dayOfWeek() != weekday)
+        date = date.shiftDays(1);
+
+    var tmp = date.shiftDays(7);
+    while (tmp.month == month) : (tmp = date.shiftDays(7))
+        date = tmp;
+
+    return date.day;
 }
 
 fn basicBlock(writer: anytype, comptime format: []const u8, args: anytype) !void {

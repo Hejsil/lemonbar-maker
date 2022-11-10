@@ -8,7 +8,7 @@ const log = std.log;
 
 const State = @import("../main.zig").State;
 
-pub fn mem(state: *State) void {
+pub fn memory(state: *State) void {
     const cwd = fs.cwd();
 
     // On my system, `cat /proc/meminfo | wc -c` gives 1419, so this buffer
