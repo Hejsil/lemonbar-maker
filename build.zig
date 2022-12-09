@@ -3,7 +3,6 @@ const std = @import("std");
 const Builder = std.build.Builder;
 
 pub fn build(b: *Builder) void {
-    b.setPreferredReleaseMode(.ReleaseFast);
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
 
@@ -21,6 +20,5 @@ pub fn build(b: *Builder) void {
         obj.addPackagePath("sab", "lib/sab/src/main.zig");
         obj.setBuildMode(mode);
         obj.setTarget(target);
-        obj.use_stage1 = true;
     }
 }

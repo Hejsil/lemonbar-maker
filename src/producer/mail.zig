@@ -36,7 +36,8 @@ const Mail = struct {
 
 fn count(root: fs.IterableDir) !Mail {
     var buf: [1024 * 1024]u8 = undefined;
-    const fba = heap.FixedBufferAllocator.init(&buf).allocator();
+    var fba_state = heap.FixedBufferAllocator.init(&buf);
+    const fba = fba_state.allocator();
     var stack = std.ArrayList(fs.IterableDir).init(fba);
 
     var res = Mail{ .unread = 0, .read = 0 };
@@ -46,7 +47,8 @@ fn count(root: fs.IterableDir) !Mail {
     errdefer for (stack.items) |*dir|
         if (dir.dir.fd != root.dir.fd) dir.close();
 
-    while (stack.popOrNull()) |*dir| {
+    while (stack.popOrNull()) |_dir| {
+        var dir = _dir;
         defer if (dir.dir.fd != root.dir.fd) dir.close();
 
         var it = dir.iterate();
