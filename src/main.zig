@@ -19,10 +19,11 @@ const Datetime = datetime.Datetime;
 const parsers = .{ .COLOR = clap.parsers.string };
 
 const params = clap.parseParamsComptime(
-    \\-h, --help          Print this message to stdout
-    \\-l, --low <COLOR>   The color when a bar is a low value
-    \\-m, --mid <COLOR>   The color when a bar is a medium value
-    \\-h, --high <COLOR>  The color when a bar is a high value
+    \\-h, --help                 Print this message to stdout
+    \\    --background <COLOR>   The color of the bar background used for certain workarounds
+    \\    --low <COLOR>          The color when a bar is a low value
+    \\    --mid <COLOR>          The color when a bar is a medium value
+    \\    --high <COLOR>         The color when a bar is a high value
     \\
 );
 
@@ -58,6 +59,7 @@ pub fn main() !void {
     if (args.help)
         return try usage(io.getStdOut().writer());
 
+    const background = args.background orelse "-";
     const low = args.low orelse "-";
     const mid = args.mid orelse "-";
     const high = args.high orelse "-";
@@ -86,6 +88,7 @@ pub fn main() !void {
     _ = try std.Thread.spawn(.{}, producer.mail, .{ &state, home_dir });
     _ = try std.Thread.spawn(.{}, producer.bspwm, .{&state});
     renderer(allocator, &state, .{
+        .background = background,
         .low = low,
         .mid = mid,
         .high = high,
@@ -98,6 +101,7 @@ pub fn main() !void {
 }
 
 const Options = struct {
+    background: []const u8,
     low: []const u8,
     mid: []const u8,
     high: []const u8,
@@ -144,7 +148,7 @@ fn renderer(
     var prev_buf = std.ArrayList(u8).init(allocator);
 
     const bars = [_][]const u8{
-        try fmt.allocPrint(allocator, "%{{F{s}}} ", .{options.low}),
+        try fmt.allocPrint(allocator, "%{{F{s}}}▁", .{options.background}),
         try fmt.allocPrint(allocator, "%{{F{s}}}▁", .{options.low}),
         try fmt.allocPrint(allocator, "%{{F{s}}}▂", .{options.low}),
         try fmt.allocPrint(allocator, "%{{F{s}}}▃", .{options.mid}),
@@ -203,13 +207,11 @@ fn workspaceBlock(writer: anytype, workspaces: []const Workspace) !void {
         if (!workspace.is_active)
             continue;
 
-        const focus: usize = @boolToInt(workspace.focused);
-        const occupied: usize = @boolToInt(workspace.occupied);
         try writer.print("{s} {}{s}{s}", .{
-            ([_][]const u8{ "", "%{+u}" })[focus],
+            if (workspace.focused) "%{+u}" else "",
             i + 1,
-            ([_][]const u8{ " ", "*" })[occupied],
-            ([_][]const u8{ "", "%{-u}" })[focus],
+            if (workspace.occupied) "*" else " ",
+            if (workspace.focused) "%{-u}" else "",
         });
     }
     try writer.writeAll("%{-o}");
