@@ -55,6 +55,6 @@ fn field(comptime name: []const u8) mecha.Parser(usize) {
         mecha.discard(mecha.many(mecha.ascii.char(' '), .{ .collect = false })),
         mecha.int(usize, .{}),
         mecha.discard(mecha.opt(mecha.string(" kB"))),
-        mecha.ascii.char('\n'),
+        mecha.discard(mecha.ascii.char('\n')),
     });
 }
