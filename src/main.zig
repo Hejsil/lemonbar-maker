@@ -167,7 +167,7 @@ fn renderer(
             break :blk state.*;
         };
 
-        for (curr.monitors) |monitor, mon_id| {
+        for (curr.monitors, 0..) |monitor, mon_id| {
             if (!monitor.is_active)
                 continue;
             try out.print("%{{S{}}}", .{mon_id});
@@ -203,7 +203,7 @@ fn renderer(
 
 fn workspaceBlock(writer: anytype, workspaces: []const Workspace) !void {
     try writer.writeAll("%{+o}");
-    for (workspaces) |workspace, i| {
+    for (workspaces, 0..) |workspace, i| {
         if (!workspace.is_active)
             continue;
 

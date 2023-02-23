@@ -85,10 +85,10 @@ const first_line = mecha.combine(.{
     mecha.discard(mecha.ascii.char('\n')),
 });
 
-const line = mecha.map(Cpu, mecha.toStruct(Cpu), mecha.combine(.{
+const line = mecha.map(mecha.toStruct(Cpu), mecha.combine(.{
     mecha.string("cpu"),
     mecha.int(usize, .{}),
-    mecha.map(CpuInfo, mecha.toStruct(CpuInfo), mecha.manyN(mecha.combine(.{
+    mecha.map(mecha.toStruct(CpuInfo), mecha.manyN(mecha.combine(.{
         mecha.discard(mecha.many(mecha.ascii.char(' '), .{ .collect = false })),
         mecha.int(usize, .{}),
     }), 10, .{})),

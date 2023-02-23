@@ -42,7 +42,7 @@ const Mem = struct {
 const parser = blk: {
     @setEvalBranchQuota(1000000000);
 
-    break :blk mecha.map(Mem, mecha.toStruct(Mem), mecha.combine(.{
+    break :blk mecha.map(mecha.toStruct(Mem), mecha.combine(.{
         field("MemTotal"),
         field("MemFree"),
         field("MemAvailable"),
