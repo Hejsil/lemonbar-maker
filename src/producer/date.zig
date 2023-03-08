@@ -1,4 +1,4 @@
-const datetime = @import("datetime");
+const datetime = @import("datetime").datetime;
 const std = @import("std");
 
 const event = std.event;

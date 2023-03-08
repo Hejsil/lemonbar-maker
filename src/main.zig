@@ -1,5 +1,5 @@
 const clap = @import("clap");
-const datetime = @import("datetime");
+const datetime = @import("datetime").datetime;
 const producer = @import("producer.zig");
 const sab = @import("sab");
 const std = @import("std");

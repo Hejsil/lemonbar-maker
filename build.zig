@@ -6,19 +6,6 @@ pub fn build(b: *Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const target = b.standardTargetOptions(.{});
 
-    const mecha_module = b.createModule(.{
-        .source_file = .{ .path = "lib/mecha/mecha.zig" },
-    });
-    const datetime_module = b.createModule(.{
-        .source_file = .{ .path = "lib/zig-datetime/src/datetime.zig" },
-    });
-    const clap_module = b.createModule(.{
-        .source_file = .{ .path = "lib/zig-clap/clap.zig" },
-    });
-    const sab_module = b.createModule(.{
-        .source_file = .{ .path = "lib/sab/src/main.zig" },
-    });
-
     const exe = b.addExecutable(.{
         .name = "lemonbar-maker",
         .root_source_file = .{ .path = "src/main.zig" },
@@ -36,10 +23,15 @@ pub fn build(b: *Build) void {
 
     test_step.dependOn(&the_test.step);
 
+    const clap = b.dependency("clap", .{});
+    const mecha = b.dependency("mecha", .{});
+    const sab = b.dependency("sab", .{});
+    const datetime = b.dependency("datetime", .{});
+
     for ([_]*Build.CompileStep{ exe, the_test }) |step| {
-        step.addModule("clap", clap_module);
-        step.addModule("datetime", datetime_module);
-        step.addModule("mecha", mecha_module);
-        step.addModule("sab", sab_module);
+        step.addModule("clap", clap.module("clap"));
+        step.addModule("datetime", datetime.module("zig-datetime"));
+        step.addModule("mecha", mecha.module("mecha"));
+        step.addModule("sab", sab.module("sab"));
     }
 }
