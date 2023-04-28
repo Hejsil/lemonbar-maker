@@ -12,7 +12,6 @@ pub fn build(b: *Build) void {
         .optimize = optimize,
         .target = target,
     });
-    exe.install();
 
     const test_step = b.step("test", "Run all tests");
     const the_test = b.addTest(.{
@@ -34,4 +33,6 @@ pub fn build(b: *Build) void {
         step.addModule("mecha", mecha.module("mecha"));
         step.addModule("sab", sab.module("sab"));
     }
+
+    b.installArtifact(exe);
 }

@@ -56,7 +56,7 @@ pub fn main() !void {
     defer clap_res.deinit();
 
     const args = clap_res.args;
-    if (args.help)
+    if (args.help != 0)
         return try usage(io.getStdOut().writer());
 
     const background = args.background orelse "-";
