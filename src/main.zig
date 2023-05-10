@@ -117,7 +117,7 @@ pub const State = struct {
     mail_unread: usize = 0,
 
     // Support up to 128 threads
-    cpu_percent: [128]?u8 = [_]?u8{null} ** 128,
+    cpu_percent: [128]u8 = [_]u8{math.maxInt(u8)} ** 128,
     monitors: [4]Monitor = [_]Monitor{.{}} ** 4,
 };
 
@@ -138,11 +138,7 @@ const Workspace = packed struct {
 // better to wait for a few more messages before drawing. The renderer will look at
 // the `locked_state` once in a while (N times per sec) and redraw of anything changed
 // from the last iteration.
-fn renderer(
-    allocator: mem.Allocator,
-    state: *State,
-    options: Options,
-) !void {
+fn renderer(allocator: mem.Allocator, state: *State, options: Options) !void {
     const stdout = io.getStdOut().writer();
     var buf = std.ArrayList(u8).init(allocator);
     var prev_buf = std.ArrayList(u8).init(allocator);
@@ -230,13 +226,14 @@ fn cpuBlock(
     writer: anytype,
     options: Options,
     bars: []const []const u8,
-    cpu_percent: []const ?u8,
+    cpu_percent: []const u8,
 ) !void {
     try blockBegin(writer);
     var total: usize = 0;
     var count: usize = 0;
-    for (cpu_percent) |m_cpu| {
-        const cpu = m_cpu orelse continue;
+    for (cpu_percent) |cpu| {
+        if (cpu == math.maxInt(u8))
+            continue;
         total += cpu;
         count += 1;
         try sab.draw(writer, u8, cpu, .{ .len = 1, .steps = bars });
