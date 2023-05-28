@@ -54,7 +54,7 @@ fn count(root: fs.IterableDir) !Mail {
         var it = dir.iterate();
         while (try it.next()) |entry| {
             switch (entry.kind) {
-                .Directory => if (!mem.eql(u8, entry.name, "Spam")) {
+                .directory => if (!mem.eql(u8, entry.name, "Spam")) {
                     const sub_dir = try dir.dir.openIterableDir(entry.name, .{});
                     try stack.append(sub_dir);
                 },
