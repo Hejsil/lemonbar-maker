@@ -26,19 +26,19 @@ pub fn cpu(state: *State) void {
             log.warn("Failed to read /proc/stat: {}", .{err});
             continue;
         };
-        if (first_line(fba.allocator(), content)) |res| {
+        if (first_line.parse(fba.allocator(), content)) |res| {
             content = res.rest;
         } else |_| {}
 
         state.mutex.lock();
-        while (line(fba.allocator(), content)) |result| : (content = result.rest) {
+        while (line.parse(fba.allocator(), content)) |result| : (content = result.rest) {
             const info = result.value.info;
             const i = result.value.id;
             const last = cpu_last[i];
             const user = math.sub(usize, info.user, last.user) catch 0;
             const sys = math.sub(usize, info.sys, last.sys) catch 0;
             const idle = math.sub(usize, info.idle, last.idle) catch 0;
-            const cpu_usage = ((user + sys) * 100) / math.max(1, user + sys + idle);
+            const cpu_usage = ((user + sys) * 100) / @max(1, user + sys + idle);
             state.cpu_percent[i] = @intCast(u8, cpu_usage);
             cpu_last[i] = .{
                 .user = info.user,
@@ -77,20 +77,20 @@ const CpuInfo = struct {
 };
 
 const first_line = mecha.combine(.{
-    mecha.string("cpu"),
-    mecha.manyN(mecha.combine(.{
-        mecha.discard(mecha.many(mecha.ascii.char(' '), .{ .collect = false })),
+    mecha.string("cpu").discard(),
+    mecha.combine(.{
+        mecha.ascii.char(' ').many(.{ .collect = false }).discard(),
         mecha.int(usize, .{}),
-    }), 10, .{}),
-    mecha.discard(mecha.ascii.char('\n')),
+    }).manyN(10, .{}),
+    mecha.ascii.char('\n').discard(),
 });
 
-const line = mecha.map(mecha.toStruct(Cpu), mecha.combine(.{
-    mecha.string("cpu"),
+const line = mecha.combine(.{
+    mecha.string("cpu").discard(),
     mecha.int(usize, .{}),
-    mecha.map(mecha.toStruct(CpuInfo), mecha.manyN(mecha.combine(.{
-        mecha.discard(mecha.many(mecha.ascii.char(' '), .{ .collect = false })),
+    mecha.combine(.{
+        mecha.many(mecha.ascii.char(' '), .{ .collect = false }).discard(),
         mecha.int(usize, .{}),
-    }), 10, .{})),
-    mecha.discard(mecha.ascii.char('\n')),
-}));
+    }).manyN(10, .{}).map(mecha.toStruct(CpuInfo)),
+    mecha.ascii.char('\n').discard(),
+}).map(mecha.toStruct(Cpu));

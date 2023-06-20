@@ -21,7 +21,7 @@ pub fn memory(state: *State) void {
             log.warn("Failed to read /proc/meminfo: {}", .{err});
             continue;
         };
-        const result = parser(fba.allocator(), content) catch |err| {
+        const result = parser.parse(fba.allocator(), content) catch |err| {
             log.warn("Error while parsing /proc/meminfo: {}", .{err});
             continue;
         };
@@ -41,20 +41,19 @@ const Mem = struct {
 
 const parser = blk: {
     @setEvalBranchQuota(1000000000);
-
-    break :blk mecha.map(mecha.toStruct(Mem), mecha.combine(.{
+    break :blk mecha.combine(.{
         field("MemTotal"),
         field("MemFree"),
         field("MemAvailable"),
-    }));
+    }).map(mecha.toStruct(Mem));
 };
 
 fn field(comptime name: []const u8) mecha.Parser(usize) {
     return mecha.combine(.{
-        mecha.string(name ++ ":"),
-        mecha.discard(mecha.many(mecha.ascii.char(' '), .{ .collect = false })),
+        mecha.string(name ++ ":").discard(),
+        mecha.ascii.char(' ').many(.{ .collect = false }).discard(),
         mecha.int(usize, .{}),
-        mecha.discard(mecha.opt(mecha.string(" kB"))),
-        mecha.discard(mecha.ascii.char('\n')),
+        mecha.string(" kB").opt().discard(),
+        mecha.ascii.char('\n').discard(),
     });
 }
