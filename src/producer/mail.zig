@@ -59,8 +59,8 @@ fn count(root: fs.IterableDir) !Mail {
                     try stack.append(sub_dir);
                 },
                 else => {
-                    res.unread += @boolToInt(mem.endsWith(u8, entry.name, ","));
-                    res.read += @boolToInt(mem.endsWith(u8, entry.name, "S"));
+                    res.unread += @intFromBool(mem.endsWith(u8, entry.name, ","));
+                    res.read += @intFromBool(mem.endsWith(u8, entry.name, "S"));
                 },
             }
         }
