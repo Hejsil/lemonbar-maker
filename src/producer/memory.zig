@@ -28,7 +28,7 @@ pub fn memory(state: *State) void {
 
         const used = result.value.mem_total - result.value.mem_available;
         state.mutex.lock();
-        state.mem_percent_used = @intCast(u8, (used * 100) / result.value.mem_total);
+        state.mem_percent_used = @intCast((used * 100) / result.value.mem_total);
         state.mutex.unlock();
     }
 }

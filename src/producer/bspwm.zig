@@ -19,7 +19,7 @@ pub fn bspwm(state: *State) void {
     };
     defer os.close(socket);
 
-    os.connect(socket, @ptrCast(*const os.sockaddr, &sock_addr), @sizeOf(os.sockaddr.un)) catch |err| {
+    os.connect(socket, @ptrCast(&sock_addr), @sizeOf(os.sockaddr.un)) catch |err| {
         return log.err("Failed to connect to bspwm socket: {}", .{err});
     };
     _ = os.sendto(socket, "subscribe\x00report\x00", 0, null, 0) catch |err| {

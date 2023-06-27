@@ -39,7 +39,7 @@ pub fn cpu(state: *State) void {
             const sys = math.sub(usize, info.sys, last.sys) catch 0;
             const idle = math.sub(usize, info.idle, last.idle) catch 0;
             const cpu_usage = ((user + sys) * 100) / @max(1, user + sys + idle);
-            state.cpu_percent[i] = @intCast(u8, cpu_usage);
+            state.cpu_percent[i] = @intCast(cpu_usage);
             cpu_last[i] = .{
                 .user = info.user,
                 .sys = info.sys,
