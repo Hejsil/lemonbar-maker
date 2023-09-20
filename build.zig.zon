@@ -3,16 +3,16 @@
     .version = "0.0.0",
     .dependencies = .{
         .clap = .{
-            .url = "https://github.com/Hejsil/zig-clap/archive/f49b94700e0761b7514abdca0e4f0e7f3f938a93.tar.gz",
-            .hash = "1220f48518ce22882e102255ed3bcdb7aeeb4891f50b2cdd3bd74b5b2e24d3149ba2",
+            .url = "https://github.com/Hejsil/zig-clap/archive/34e068756e69e7ee51ba6f27eb9036e19984a128.tar.gz",
+            .hash = "12206795542ab1c19251aac74db20dda4c2abf3289597dd02d52b1d70175064fb298",
         },
         .mecha = .{
-            .url = "https://github.com/Hejsil/mecha/archive/4010962e1e12f1c625c7c855fa4c9487bae89c4d.tar.gz",
-            .hash = "122033ed1281a743a5670cce74adcc1e6950db3d3ffcfbedfdf1de6af5b5be512849",
+            .url = "https://github.com/Hejsil/mecha/archive/2d11b52639406ce8b8b80903d4b96f3742ee1403.tar.gz",
+            .hash = "12202ec9c27fc66aa971fc5fb52841c599565c49d390937643390c589475f6ca8a10",
         },
         .sab = .{
-            .url = "https://github.com/Hejsil/sab/archive/22782e7c8509d09b968d8bbbde4b24452d9a8a33.tar.gz",
-            .hash = "1220c2a06fd3b915c8ddf7975a7ff6dbfdfafcd97d7475c1f89a68097253e4991c43",
+            .url = "https://github.com/Hejsil/sab/archive/f96991f012827f201a8bafc53467dcf76e6bdcf9.tar.gz",
+            .hash = "1220a64ed7dac83df30ed8edc2e52e6d4f555d5fa0ce6409585b9fd9811e382eded5",
         },
         .datetime = .{
             .url = "https://github.com/frmdstryr/zig-datetime/archive/ddecb4e508e99ad6ab1314378225413959d54756.tar.gz",
