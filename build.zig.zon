@@ -1,6 +1,13 @@
 .{
     .name = "lemonbar-maker",
     .version = "0.0.0",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "LICENSE",
+        "README.md",
+        "src",
+    },
     .dependencies = .{
         .clap = .{
             .url = "https://github.com/Hejsil/zig-clap/archive/34e068756e69e7ee51ba6f27eb9036e19984a128.tar.gz",
