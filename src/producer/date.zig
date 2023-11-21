@@ -11,7 +11,7 @@ pub fn date(state: *State) void {
     next.time.nanosecond = 0;
 
     while (true) : (std.time.sleep(std.time.ns_per_s)) {
-        var now = datetime.Datetime.now().shiftTimezone(&datetime.timezones.Europe.Copenhagen);
+        const now = datetime.Datetime.now().shiftTimezone(&datetime.timezones.Europe.Copenhagen);
 
         if (next.lte(now)) {
             state.mutex.lock();
