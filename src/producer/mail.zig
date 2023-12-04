@@ -13,7 +13,7 @@ pub fn mail(state: *State, home_dir: fs.Dir) void {
     //       we wait for file system events, but it seems that Zigs `fs.Watch` haven't been
     //       worked on for a while, so I'm not gonna try using it.
     while (true) : (std.time.sleep(std.time.ns_per_s)) {
-        var mail_dir = home_dir.openIterableDir(".local/share/mail", .{}) catch |err| {
+        var mail_dir = home_dir.openDir(".local/share/mail", .{ .iterate = true }) catch |err| {
             return log.err("Failed to open .local/share/mail: {}", .{err});
         };
         defer mail_dir.close();
@@ -34,28 +34,28 @@ const Mail = struct {
     read: usize,
 };
 
-fn count(root: fs.IterableDir) !Mail {
+fn count(root: fs.Dir) !Mail {
     var buf: [1024 * 1024]u8 = undefined;
     var fba_state = heap.FixedBufferAllocator.init(&buf);
     const fba = fba_state.allocator();
-    var stack = std.ArrayList(fs.IterableDir).init(fba);
+    var stack = std.ArrayList(fs.Dir).init(fba);
 
     var res = Mail{ .unread = 0, .read = 0 };
     try stack.append(root);
 
     // Never close root dir
     errdefer for (stack.items) |*dir|
-        if (dir.dir.fd != root.dir.fd) dir.close();
+        if (dir.fd != root.fd) dir.close();
 
     while (stack.popOrNull()) |_dir| {
         var dir = _dir;
-        defer if (dir.dir.fd != root.dir.fd) dir.close();
+        defer if (dir.fd != root.fd) dir.close();
 
         var it = dir.iterate();
         while (try it.next()) |entry| {
             switch (entry.kind) {
                 .directory => if (!mem.eql(u8, entry.name, "Spam")) {
-                    const sub_dir = try dir.dir.openIterableDir(entry.name, .{});
+                    const sub_dir = try dir.openDir(entry.name, .{ .iterate = true });
                     try stack.append(sub_dir);
                 },
                 else => {

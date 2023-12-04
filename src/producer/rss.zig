@@ -22,7 +22,7 @@ pub fn rss(state: *State, home_dir: fs.Dir) !void {
     );
 
     while (true) {
-        var unread = home_dir.openIterableDir(unread_path, .{}) catch |err| {
+        var unread = home_dir.openDir(unread_path, .{ .iterate = true }) catch |err| {
             return log.err("Failed to open .local/share/rss/unread: {}", .{err});
         };
         defer unread.close();
@@ -40,7 +40,7 @@ pub fn rss(state: *State, home_dir: fs.Dir) !void {
     }
 }
 
-fn count(dir: fs.IterableDir) !usize {
+fn count(dir: fs.Dir) !usize {
     var res: usize = 0;
     var it = dir.iterate();
     while (try it.next()) |_|

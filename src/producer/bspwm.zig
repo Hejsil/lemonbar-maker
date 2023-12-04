@@ -55,9 +55,6 @@ fn processLine(line: []const u8, state: *State) void {
 
     var it = mem.tokenize(u8, line, ":");
     while (it.next()) |item| {
-        var name: [7:0]u8 = [1:0]u8{0} ** 7;
-        mem.copy(u8, &name, item[0..@min(item.len, 7)]);
-
         switch (item[0]) {
             'm', 'M' => {
                 curr_workspace = 0;
