@@ -85,7 +85,7 @@ pub fn main() !void {
     _ = try std.Thread.spawn(.{}, producer.memory, .{&state});
     _ = try std.Thread.spawn(.{}, producer.cpu, .{&state});
     _ = try std.Thread.spawn(.{}, producer.rss, .{ &state, home_dir });
-    _ = try std.Thread.spawn(.{}, producer.mail, .{ &state, home_dir });
+    // _ = try std.Thread.spawn(.{}, producer.mail, .{ &state, home_dir });
     _ = try std.Thread.spawn(.{}, producer.bspwm, .{&state});
     renderer(allocator, &state, .{
         .background = background,
@@ -114,7 +114,7 @@ pub const State = struct {
     now: Datetime,
     mem_percent_used: u8 = 0,
     rss_unread: usize = 0,
-    mail_unread: usize = 0,
+    // mail_unread: usize = 0,
 
     // Support up to 128 threads
     cpu_percent: [128]u8 = [_]u8{math.maxInt(u8)} ** 128,
@@ -178,8 +178,8 @@ fn renderer(allocator: mem.Allocator, state: *State, options: Options) !void {
             try cpuBlock(out, options, &bars, &curr.cpu_percent);
 
             try right(out);
-            try basicBlock(out, "mail{:>3}", .{curr.mail_unread});
-            try out.writeAll(" ");
+            // try basicBlock(out, "mail{:>3}", .{curr.mail_unread});
+            // try out.writeAll(" ");
             try basicBlock(out, "rss{:>3}", .{curr.rss_unread});
             try out.writeAll(" ");
             try dateBlock(out, curr.now);
