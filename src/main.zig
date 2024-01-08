@@ -47,7 +47,10 @@ pub fn main() !void {
 
     log.debug("Parsing arguments", .{});
     var diag = clap.Diagnostic{};
-    var clap_res = clap.parse(clap.Help, &params, parsers, .{ .diagnostic = &diag }) catch |err| {
+    var clap_res = clap.parse(clap.Help, &params, parsers, .{
+        .allocator = allocator,
+        .diagnostic = &diag,
+    }) catch |err| {
         const stderr = io.getStdErr().writer();
         diag.report(stderr, err) catch {};
         usage(stderr) catch {};

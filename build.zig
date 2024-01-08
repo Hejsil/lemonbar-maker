@@ -27,11 +27,11 @@ pub fn build(b: *Build) void {
     const sab = b.dependency("sab", .{});
     const datetime = b.dependency("datetime", .{});
 
-    for ([_]*Build.CompileStep{ exe, the_test }) |step| {
-        step.addModule("clap", clap.module("clap"));
-        step.addModule("datetime", datetime.module("zig-datetime"));
-        step.addModule("mecha", mecha.module("mecha"));
-        step.addModule("sab", sab.module("sab"));
+    for ([_]*Build.Step.Compile{ exe, the_test }) |step| {
+        step.root_module.addImport("clap", clap.module("clap"));
+        step.root_module.addImport("datetime", datetime.module("zig-datetime"));
+        step.root_module.addImport("mecha", mecha.module("mecha"));
+        step.root_module.addImport("sab", sab.module("sab"));
     }
 
     b.installArtifact(exe);
